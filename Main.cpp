@@ -33,14 +33,16 @@ LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ W
 	{
 		case WM_TRAYICON:
 		{
-			if (LParam == WM_LBUTTONDOWN || LParam == WM_RBUTTONDOWN)
+			if (LParam != WM_LBUTTONDOWN && LParam != WM_RBUTTONDOWN)
+				break;
+			
+			if (MessageBox(Window, L"Quit UniversalPauseButton?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION) == IDYES)
 			{
-				if (MessageBox(Window, L"Quit UniversalPauseButton?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION) == IDYES)
-				{
-					Shell_NotifyIcon(NIM_DELETE, &G_TrayNotifyIconData);
-					PostQuitMessage(0);
-				}
+				Shell_NotifyIcon(NIM_DELETE, &G_TrayNotifyIconData);
+				PostQuitMessage(0);
 			}
+			
+			break;
 		}
 		default:
 		{
@@ -49,6 +51,12 @@ LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ W
 		}
 	}
 	return(Result);
+}
+
+void LoopError(LPCTSTR message)
+{
+	MessageBox(NULL, message, L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+	Sleep(10);
 }
 
 // Entry point.
@@ -130,86 +138,88 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 		}
 
 		int PauseKeyIsDown = GetAsyncKeyState(VK_PAUSE);
-
-		if (PauseKeyIsDown && !PauseKeyWasDown)
+		
+		if (!PauseKeyIsDown || PauseKeyWasDown)
 		{
-			HWND ForegroundWindow = GetForegroundWindow();
-			if (ForegroundWindow)
+			PauseKeyWasDown = PauseKeyIsDown;
+			Sleep(10);
+			continue;
+		}
+		
+		PauseKeyWasDown = PauseKeyIsDown;
+		
+		HWND ForegroundWindow = GetForegroundWindow();
+		if(!ForegroundWindow)
+		{
+			LoopError(L"Unable to detect foreground window!");
+			continue;
+		}
+		
+		DWORD ProcessID = 0;
+		GetWindowThreadProcessId(ForegroundWindow, &ProcessID);
+		if(ProcessID == 0)
+		{
+			LoopError(L"Unable to get process ID of foreground window!");
+			continue;
+		}
+		
+		HANDLE ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessID);
+		if(ProcessHandle == 0)
+		{
+			LoopError(L"OpenProcess failed!");
+			continue;
+		}
+		
+		if (PreviouslySuspendedProcessID == 0)
+		{
+			NtSuspendProcess(ProcessHandle);
+			PreviouslySuspendedProcessID = ProcessID;
+			GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
+		}
+		else if (PreviouslySuspendedProcessID == ProcessID)
+		{
+			NtResumeProcess(ProcessHandle);
+			PreviouslySuspendedProcessID = 0;
+			memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
+		}
+		else
+		{
+			// The user pressed the pause button while focused on another process than what was
+			// originally paused and the first process is still paused.
+			DWORD AllProcesses[2048] = { 0 };
+			DWORD BytesReturned = 0;
+			BOOL PreviouslySuspendedProcessIsStillRunning = FALSE;
+			
+			if(!EnumProcesses(AllProcesses, sizeof(AllProcesses), &BytesReturned))
 			{
-				DWORD ProcessID = 0;
-				GetWindowThreadProcessId(ForegroundWindow, &ProcessID);
-				if (ProcessID != 0)
-				{
-					HANDLE ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessID);
-					if (ProcessHandle != 0)
-					{
-						if (PreviouslySuspendedProcessID == 0)
-						{
-							NtSuspendProcess(ProcessHandle);
-							PreviouslySuspendedProcessID = ProcessID;
-							GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
-						}
-						else if (PreviouslySuspendedProcessID == ProcessID)
-						{
-							NtResumeProcess(ProcessHandle);
-							PreviouslySuspendedProcessID = 0;
-							memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
-						}
-						else
-						{
-							// The user pressed the pause button while focused on another process than what was
-							// originally paused and the first process is still paused.
-							DWORD AllProcesses[2048] = { 0 };
-							DWORD BytesReturned = 0;
-							BOOL PreviouslySuspendedProcessIsStillRunning = FALSE;
+				CloseHandle(ProcessHandle);
+				LoopError(L"EnumProcesses failed!");
+				continue;
+			}
 
-							if (EnumProcesses(AllProcesses, sizeof(AllProcesses), &BytesReturned) != 0)
-							{
-								for (DWORD Counter = 0; Counter < (BytesReturned / sizeof(DWORD)); Counter++)
-								{
-									if ((AllProcesses[Counter] != 0) && AllProcesses[Counter] == PreviouslySuspendedProcessID)
-									{
-										PreviouslySuspendedProcessIsStillRunning = TRUE;										
-									}
-								}
-								if (PreviouslySuspendedProcessIsStillRunning)
-								{
-									wchar_t MessageBoxBuffer[1024] = { 0 };
-									_snwprintf_s(MessageBoxBuffer, sizeof(MessageBoxBuffer), L"You must first unpause %s (PID %d) before pausing another program.", PreviouslySuspendedProcessText, PreviouslySuspendedProcessID);
-									MessageBox(ForegroundWindow, MessageBoxBuffer, L"Universal Pause Button", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
-								}
-								else
-								{
-									// The paused process is no more, so reset.
-									PreviouslySuspendedProcessID = 0;									
-									memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
-								}
-							}
-							else
-							{
-								MessageBox(NULL, L"EnumProcesses failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-							}
-						}
-						CloseHandle(ProcessHandle);
-					}
-					else
-					{
-						MessageBox(NULL, L"OpenProcess failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-					}
-				}
-				else
+			for (DWORD Counter = 0; Counter < (BytesReturned / sizeof(DWORD)); Counter++)
+			{
+				if ((AllProcesses[Counter] != 0) && AllProcesses[Counter] == PreviouslySuspendedProcessID)
 				{
-					MessageBox(NULL, L"Unable to get process ID of foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+					PreviouslySuspendedProcessIsStillRunning = TRUE;										
 				}
+			}
+			if (PreviouslySuspendedProcessIsStillRunning)
+			{
+				wchar_t MessageBoxBuffer[1024] = { 0 };
+				_snwprintf_s(MessageBoxBuffer, sizeof(MessageBoxBuffer), L"You must first unpause %s (PID %d) before pausing another program.", PreviouslySuspendedProcessText, PreviouslySuspendedProcessID);
+				MessageBox(ForegroundWindow, MessageBoxBuffer, L"Universal Pause Button", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
 			}
 			else
 			{
-				MessageBox(NULL, L"Unable to detect foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+				// The paused process is no more, so reset.
+				PreviouslySuspendedProcessID = 0;									
+				memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
 			}
 		}
-
-		PauseKeyWasDown = PauseKeyIsDown;
-
+		
+		CloseHandle(ProcessHandle);
+		
 		Sleep(10);
 	}
 
