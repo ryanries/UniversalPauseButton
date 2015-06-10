@@ -12,6 +12,8 @@
 
 #define WM_TRAYICON (WM_USER + 1)
 
+// WARNING: Undocumented Win32 API functions!
+// Microsoft may change these at any time; they are not guaranteed to work on the next version of Windows.
 typedef LONG(NTAPI* _NtSuspendProcess) (IN HANDLE ProcessHandle);
 typedef LONG(NTAPI* _NtResumeProcess)  (IN HANDLE ProcessHandle);
 
@@ -21,26 +23,32 @@ _NtResumeProcess NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHan
 NOTIFYICONDATA G_TrayNotifyIconData;
 HANDLE         G_Mutex;
 
-
 // The WindowProc (callback) for WinMain's WindowClass.
 // Basically the system tray does nothing except lets the user know that it's running.
 // If the user clicks the tray icon it will ask if they want to exit the app.
 LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam)
 {
 	LRESULT Result = 0;
+	static BOOL QuitMessageBoxIsShowing = FALSE;
 
 	switch (Message)
 	{
 		case WM_TRAYICON:
 		{
-			if (LParam == WM_LBUTTONDOWN || LParam == WM_RBUTTONDOWN)
+			if (!QuitMessageBoxIsShowing && (LParam == WM_LBUTTONDOWN || LParam == WM_RBUTTONDOWN || LParam == WM_MBUTTONDOWN))
 			{
-				if (MessageBox(Window, L"Quit UniversalPauseButton?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION) == IDYES)
+				QuitMessageBoxIsShowing = TRUE;
+				if (MessageBox(Window, L"Quit UniversalPauseButton?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION | MB_SYSTEMMODAL) == IDYES)
 				{
 					Shell_NotifyIcon(NIM_DELETE, &G_TrayNotifyIconData);
 					PostQuitMessage(0);
 				}
+				else
+				{
+					QuitMessageBoxIsShowing = FALSE;
+				}
 			}
+			break;
 		}
 		default:
 		{
@@ -101,7 +109,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 	G_TrayNotifyIconData.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	G_TrayNotifyIconData.uCallbackMessage = WM_TRAYICON;
 
-	wcscpy_s(G_TrayNotifyIconData.szTip, L"Universal Pause Button v1.0");
+	wcscpy_s(G_TrayNotifyIconData.szTip, L"Universal Pause Button v1.0.1");
 
 	G_TrayNotifyIconData.hIcon = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 0, 0, NULL);
 
@@ -121,6 +129,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 	static int PauseKeyWasDown                      = 0;
 	DWORD      PreviouslySuspendedProcessID         = 0;	
 	wchar_t    PreviouslySuspendedProcessText[256]  = { 0 };	
+	HANDLE     ProcessHandle                        = 0;
 
 	while (SysTrayWindowMessage.message != WM_QUIT)
 	{
@@ -134,82 +143,85 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 		if (PauseKeyIsDown && !PauseKeyWasDown)
 		{
 			HWND ForegroundWindow = GetForegroundWindow();
-			if (ForegroundWindow)
+			if (!ForegroundWindow)
 			{
-				DWORD ProcessID = 0;
-				GetWindowThreadProcessId(ForegroundWindow, &ProcessID);
-				if (ProcessID != 0)
-				{
-					HANDLE ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessID);
-					if (ProcessHandle != 0)
-					{
-						if (PreviouslySuspendedProcessID == 0)
-						{
-							NtSuspendProcess(ProcessHandle);
-							PreviouslySuspendedProcessID = ProcessID;
-							GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
-						}
-						else if (PreviouslySuspendedProcessID == ProcessID)
-						{
-							NtResumeProcess(ProcessHandle);
-							PreviouslySuspendedProcessID = 0;
-							memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
-						}
-						else
-						{
-							// The user pressed the pause button while focused on another process than what was
-							// originally paused and the first process is still paused.
-							DWORD AllProcesses[2048] = { 0 };
-							DWORD BytesReturned = 0;
-							BOOL PreviouslySuspendedProcessIsStillRunning = FALSE;
+				MessageBox(NULL, L"Unable to detect foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+				goto EndOfLoop;
+			}
 
-							if (EnumProcesses(AllProcesses, sizeof(AllProcesses), &BytesReturned) != 0)
-							{
-								for (DWORD Counter = 0; Counter < (BytesReturned / sizeof(DWORD)); Counter++)
-								{
-									if ((AllProcesses[Counter] != 0) && AllProcesses[Counter] == PreviouslySuspendedProcessID)
-									{
-										PreviouslySuspendedProcessIsStillRunning = TRUE;										
-									}
-								}
-								if (PreviouslySuspendedProcessIsStillRunning)
-								{
-									wchar_t MessageBoxBuffer[1024] = { 0 };
-									_snwprintf_s(MessageBoxBuffer, sizeof(MessageBoxBuffer), L"You must first unpause %s (PID %d) before pausing another program.", PreviouslySuspendedProcessText, PreviouslySuspendedProcessID);
-									MessageBox(ForegroundWindow, MessageBoxBuffer, L"Universal Pause Button", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
-								}
-								else
-								{
-									// The paused process is no more, so reset.
-									PreviouslySuspendedProcessID = 0;									
-									memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
-								}
-							}
-							else
-							{
-								MessageBox(NULL, L"EnumProcesses failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-							}
+			DWORD ProcessID = 0;
+			GetWindowThreadProcessId(ForegroundWindow, &ProcessID);
+			if (ProcessID == 0)
+			{
+				MessageBox(NULL, L"Unable to get process ID of foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+				goto EndOfLoop;
+			}
+			
+			ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessID);
+			if (ProcessHandle == 0)
+			{
+				MessageBox(NULL, L"OpenProcess failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+				goto EndOfLoop;
+			}
+
+			if (PreviouslySuspendedProcessID == 0)
+			{
+				NtSuspendProcess(ProcessHandle);
+				PreviouslySuspendedProcessID = ProcessID;
+				GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
+			}
+			else if (PreviouslySuspendedProcessID == ProcessID)
+			{
+				NtResumeProcess(ProcessHandle);
+				PreviouslySuspendedProcessID = 0;
+				memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
+			}
+			else
+			{
+				// The user pressed the pause button while focused on another process than what was
+				// originally paused and the first process is still paused.
+				DWORD AllProcesses[2048] = { 0 };
+				DWORD BytesReturned = 0;
+				BOOL PreviouslySuspendedProcessIsStillRunning = FALSE;
+
+				if (EnumProcesses(AllProcesses, sizeof(AllProcesses), &BytesReturned) != 0)
+				{
+					for (DWORD Counter = 0; Counter < (BytesReturned / sizeof(DWORD)); Counter++)
+					{
+						if ((AllProcesses[Counter] != 0) && AllProcesses[Counter] == PreviouslySuspendedProcessID)
+						{
+							PreviouslySuspendedProcessIsStillRunning = TRUE;										
 						}
-						CloseHandle(ProcessHandle);
+					}
+					if (PreviouslySuspendedProcessIsStillRunning)
+					{
+						wchar_t MessageBoxBuffer[1024] = { 0 };
+						_snwprintf_s(MessageBoxBuffer, sizeof(MessageBoxBuffer), L"You must first unpause %s (PID %d) before pausing another program.", PreviouslySuspendedProcessText, PreviouslySuspendedProcessID);
+						MessageBox(ForegroundWindow, MessageBoxBuffer, L"Universal Pause Button", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
 					}
 					else
 					{
-						MessageBox(NULL, L"OpenProcess failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+						// The paused process is no more, so reset.
+						PreviouslySuspendedProcessID = 0;									
+						memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
 					}
 				}
 				else
 				{
-					MessageBox(NULL, L"Unable to get process ID of foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+					MessageBox(NULL, L"EnumProcesses failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
 				}
 			}
-			else
-			{
-				MessageBox(NULL, L"Unable to detect foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-			}
 		}
-
+		
+		// http://stackoverflow.com/questions/245742/examples-of-good-gotos-in-c-or-c
+	
+	EndOfLoop:
+		if (ProcessHandle)
+		{
+			CloseHandle(ProcessHandle);
+		}
+		
 		PauseKeyWasDown = PauseKeyIsDown;
-
 		Sleep(10);
 	}
 
