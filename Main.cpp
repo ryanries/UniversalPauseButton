@@ -129,7 +129,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 	G_TrayNotifyIconData.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	G_TrayNotifyIconData.uCallbackMessage = WM_TRAYICON;
 
-	wcscpy_s(G_TrayNotifyIconData.szTip, L"Universal Pause Button v1.0.1");
+	wcscpy_s(G_TrayNotifyIconData.szTip, L"Universal Pause Button v1.0.2");
 
 	G_TrayNotifyIconData.hIcon = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 0, 0, NULL);
 
