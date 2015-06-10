@@ -23,6 +23,26 @@ _NtResumeProcess NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHan
 NOTIFYICONDATA G_TrayNotifyIconData;
 HANDLE         G_Mutex;
 
+// NOTE(Ryan): This function returns true if the string ends with the specified Suffix/substring.
+// Uses wide characters. Not case sensitive.
+int StringEndsWithW(_In_ const wchar_t *Str, _In_ const wchar_t *Suffix)
+{
+	if (Str == NULL || Suffix == NULL)
+	{
+		return 0;
+	}
+
+	size_t str_len = wcslen(Str);
+	size_t suffix_len = wcslen(Suffix);
+
+	if (suffix_len > str_len)
+	{
+		return 0;
+	}
+	
+	return 0 == _wcsnicmp(Str + str_len - suffix_len, Suffix, suffix_len);
+}
+
 // The WindowProc (callback) for WinMain's WindowClass.
 // Basically the system tray does nothing except lets the user know that it's running.
 // If the user clicks the tray icon it will ask if they want to exit the app.
@@ -166,9 +186,21 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 
 			if (PreviouslySuspendedProcessID == 0)
 			{
-				NtSuspendProcess(ProcessHandle);
-				PreviouslySuspendedProcessID = ProcessID;
-				GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
+				// I won't let you pause your shell. Nothing good will come of that.
+				// Later I will get the user's shell from the registry, just to cover the 0.001% case
+				// that the user has a custom shell.
+				wchar_t ImageFileName[MAX_PATH] = { 0 };
+				GetProcessImageFileName(ProcessHandle, ImageFileName, sizeof(ImageFileName) / sizeof(wchar_t));
+				if (!StringEndsWithW(ImageFileName, L"explorer.exe"))
+				{
+					NtSuspendProcess(ProcessHandle);
+					PreviouslySuspendedProcessID = ProcessID;
+					GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
+				}
+				else
+				{
+					MessageBox(NULL, L"You cannot pause your shell.", L"UniversalPauseButton Error", MB_OK | MB_ICONWARNING | MB_SYSTEMMODAL);
+				}
 			}
 			else if (PreviouslySuspendedProcessID == ProcessID)
 			{
