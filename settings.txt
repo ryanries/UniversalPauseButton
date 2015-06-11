@@ -1,0 +1,4 @@
+KEY=0x13
+
+FOR KEY VALUES, SEE:
+https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx

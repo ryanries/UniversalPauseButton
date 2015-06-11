@@ -9,6 +9,8 @@
 #include <Psapi.h>
 #include <stdio.h>
 #include "resource.h"
+#include <fstream>
+#include <string>
 
 #define WM_TRAYICON (WM_USER + 1)
 
@@ -79,6 +81,23 @@ LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ W
 	return(Result);
 }
 
+int readPauseKey()
+{
+	std::ifstream settings("settings.txt");
+	std::string delimiter = "=";
+
+	for (std::string line; getline(settings, line);)
+	{
+		int delimiterPos = line.find(delimiter);
+		std::string option = line.substr(0, delimiterPos);
+		if (option == "KEY")
+		{
+			std::string value = line.substr(delimiterPos + 1, line.length());
+			return std::stoul(value, nullptr, 16);
+		}
+	}
+}
+
 // Entry point.
 int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 {
@@ -146,7 +165,6 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 	}
 
 	MSG        SysTrayWindowMessage                 = { 0 };
-	static int PauseKeyWasDown                      = 0;
 	DWORD      PreviouslySuspendedProcessID         = 0;	
 	wchar_t    PreviouslySuspendedProcessText[256]  = { 0 };	
 	HANDLE     ProcessHandle                        = 0;
@@ -158,7 +176,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 			DispatchMessage(&SysTrayWindowMessage);
 		}
 
-		int PauseKeyIsDown = GetAsyncKeyState(VK_PAUSE);
+		int PauseKeyIsDown = GetAsyncKeyState(readPauseKey());
 
 		if (PauseKeyIsDown && !PauseKeyWasDown)
 		{
