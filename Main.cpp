@@ -9,45 +9,61 @@
 #include <Psapi.h>
 #include <stdio.h>
 #include "resource.h"
-#include <fstream>
-#include <string>
+//#include <fstream>
+//#include <string>
 
 #define WM_TRAYICON (WM_USER + 1)
 
 // WARNING: Undocumented Win32 API functions!
 // Microsoft may change these at any time; they are not guaranteed to work on the next version of Windows.
 typedef LONG(NTAPI* _NtSuspendProcess) (IN HANDLE ProcessHandle);
-typedef LONG(NTAPI* _NtResumeProcess)  (IN HANDLE ProcessHandle);
+typedef LONG(NTAPI* _NtResumeProcess) (IN HANDLE ProcessHandle);
 
-_NtSuspendProcess NtSuspendProcess = (_NtSuspendProcess)GetProcAddress(GetModuleHandle(L"ntdll"), "NtSuspendProcess");
-_NtResumeProcess NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHandle(L"ntdll"), "NtResumeProcess");
+_NtSuspendProcess NtSuspendProcess = (_NtSuspendProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSuspendProcess");
+_NtResumeProcess NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtResumeProcess");
 
 NOTIFYICONDATA G_TrayNotifyIconData;
 HANDLE         G_Mutex;
 
 // NOTE(Ryan): This function returns true if the string ends with the specified Suffix/substring.
 // Uses wide characters. Not case sensitive.
-int StringEndsWithW(_In_ const wchar_t *Str, _In_ const wchar_t *Suffix)
+int StringEndsWith_WI(_In_ const wchar_t *String, _In_ const wchar_t *Ending)
 {
-	if (Str == NULL || Suffix == NULL)
+	if (String == NULL || Ending == NULL)
 	{
-		return 0;
+		return(0);
 	}
 
-	size_t str_len = wcslen(Str);
-	size_t suffix_len = wcslen(Suffix);
+	size_t StringLength = wcslen(String);
+	size_t EndingLength = wcslen(Ending);
 
-	if (suffix_len > str_len)
+	if (EndingLength > StringLength)
 	{
-		return 0;
+		return(0);
 	}
 	
-	return 0 == _wcsnicmp(Str + str_len - suffix_len, Suffix, suffix_len);
+	return(0 == _wcsnicmp(String + StringLength - EndingLength, Ending, EndingLength));
 }
+
+// NOTE(Ryan): This function returns true if the string starts with the specified prefix/substring.
+// ASCII characters. Not case sensitive.
+int StringStartsWith_AI(_In_ const char* String, _In_ const char* Beginning)
+{
+	if (String == NULL || Beginning == NULL)
+	{
+		return(0);
+	}
+
+	size_t PrefixLength = strlen(Beginning);
+	size_t StringLength = strlen(String);
+
+	return(StringLength < PrefixLength ? FALSE : _strnicmp(String, Beginning, PrefixLength) == 0);
+}
+
 
 // The WindowProc (callback) for WinMain's WindowClass.
 // Basically the system tray does nothing except lets the user know that it's running.
-// If the user clicks the tray icon it will ask if they want to exit the app.
+// If the user clicks the tray icon in any way it will ask if they want to exit the app.
 LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam)
 {
 	LRESULT Result = 0;
@@ -81,21 +97,73 @@ LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ W
 	return(Result);
 }
 
-int readPauseKey()
+// Returns 0x13 (VK_PAUSE) upon any failure. Therefore, the Pause/Break key is the default.
+// The first line of the file must begin with KEY=...
+int LoadPauseKeyFromSettingsFile(_In_ wchar_t* Filename)
 {
-	std::ifstream settings("settings.txt");
-	std::string delimiter = "=";
+	HANDLE FileHandle = CreateFile(Filename, GENERIC_READ, FILE_SHARE_READ,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,	NULL);
 
-	for (std::string line; getline(settings, line);)
+	if (FileHandle == INVALID_HANDLE_VALUE)
 	{
-		int delimiterPos = line.find(delimiter);
-		std::string option = line.substr(0, delimiterPos);
-		if (option == "KEY")
-		{
-			std::string value = line.substr(delimiterPos + 1, line.length());
-			return std::stoul(value, nullptr, 16);
-		}
+		goto Default;
 	}
+	
+	char  KeyLine[32] = { 0 };
+	char  Buffer[2]   = { 0 };
+	DWORD ByteRead    = 0;
+
+	do
+	{
+		if (!ReadFile(FileHandle, Buffer, 1, &ByteRead, NULL))
+		{
+			goto Default;
+		}
+
+		if (Buffer[0] == '\r' || Buffer[0] == '\n')
+		{
+			break;
+		}
+
+		size_t Length = strlen(KeyLine);
+		if (Length > 30)
+		{
+			goto Default;
+		}
+
+		KeyLine[Length] = Buffer[0];		
+		memset(Buffer, 0, sizeof(Buffer));
+	} while (ByteRead == 1);
+
+	if (!StringStartsWith_AI(KeyLine, "KEY="))
+	{
+		goto Default;
+	}
+
+	char KeyNumberAsString[16] = { 0 };
+
+	for (DWORD Counter = 4; Counter < strlen(KeyLine); Counter++)
+	{
+		KeyNumberAsString[Counter - 4] = KeyLine[Counter];
+	}
+
+	long StringToNumber = strtol(KeyNumberAsString, NULL, 16);
+	if (StringToNumber < 0x01 || StringToNumber > 0xFF)
+	{
+		goto Default;
+	}
+
+	if (FileHandle != INVALID_HANDLE_VALUE && FileHandle != NULL)
+	{
+		CloseHandle(FileHandle);
+	}
+	return(StringToNumber);	
+
+Default:
+	if (FileHandle != INVALID_HANDLE_VALUE && FileHandle != NULL)
+	{
+		CloseHandle(FileHandle);		
+	}
+	return(0x13);	
 }
 
 // Entry point.
@@ -106,6 +174,12 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 	{
 		MessageBox(NULL, L"An instance of the program is already running.", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
 		return(ERROR_ALREADY_EXISTS);
+	}
+
+	if (NtSuspendProcess == NULL || NtResumeProcess == NULL)
+	{
+		MessageBox(NULL, L"Unable to locate ntdll.dll functions!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+		return(E_FAIL);
 	}
 
 	WNDCLASS SysTrayWindowClass = { 0 };
@@ -148,7 +222,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 	G_TrayNotifyIconData.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	G_TrayNotifyIconData.uCallbackMessage = WM_TRAYICON;
 
-	wcscpy_s(G_TrayNotifyIconData.szTip, L"Universal Pause Button v1.0.2");
+	wcscpy_s(G_TrayNotifyIconData.szTip, L"Universal Pause Button v1.0.3");
 
 	G_TrayNotifyIconData.hIcon = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 0, 0, NULL);
 
@@ -164,10 +238,13 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 		return(E_FAIL);
 	}
 
+	int PauseKey = LoadPauseKeyFromSettingsFile(L"settings.txt");
+
 	MSG        SysTrayWindowMessage                 = { 0 };
 	DWORD      PreviouslySuspendedProcessID         = 0;	
-	wchar_t    PreviouslySuspendedProcessText[256]  = { 0 };	
+	wchar_t    PreviouslySuspendedProcessText[256]  = { 0 };
 	HANDLE     ProcessHandle                        = 0;
+	static int PauseKeyWasDown                      = 0;
 
 	while (SysTrayWindowMessage.message != WM_QUIT)
 	{
@@ -176,7 +253,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 			DispatchMessage(&SysTrayWindowMessage);
 		}
 
-		int PauseKeyIsDown = GetAsyncKeyState(readPauseKey());
+		int PauseKeyIsDown = GetAsyncKeyState(PauseKey);
 
 		if (PauseKeyIsDown && !PauseKeyWasDown)
 		{
@@ -209,7 +286,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 				// that the user has a custom shell.
 				wchar_t ImageFileName[MAX_PATH] = { 0 };
 				GetProcessImageFileName(ProcessHandle, ImageFileName, sizeof(ImageFileName) / sizeof(wchar_t));
-				if (!StringEndsWithW(ImageFileName, L"explorer.exe"))
+				if (!StringEndsWith_WI(ImageFileName, L"explorer.exe"))
 				{
 					NtSuspendProcess(ProcessHandle);
 					PreviouslySuspendedProcessID = ProcessID;
@@ -266,9 +343,16 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 		// http://stackoverflow.com/questions/245742/examples-of-good-gotos-in-c-or-c
 	
 	EndOfLoop:
-		if (ProcessHandle)
+		if (ProcessHandle != INVALID_HANDLE_VALUE && ProcessHandle != NULL)
 		{
-			CloseHandle(ProcessHandle);
+			__try
+			{
+				CloseHandle(ProcessHandle);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				// Please help me stop from throwing this exception. I hate exceptions.				
+			}
 		}
 		
 		PauseKeyWasDown = PauseKeyIsDown;

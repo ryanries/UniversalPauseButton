@@ -2,3 +2,9 @@ KEY=0x13
 
 FOR KEY VALUES, SEE:
 https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
+
+This is the "virtual key code" - they translate to constants such as VK_PAUSE in Visual Studio. 0x13 = The pause key on your keyboard.
+If you change the first line to KEY=0xA2 the pause button would become the left control key.
+If the program encounters any errors in reading this file, it will default to 0x13.
+You can put any other notes you want at the bottom of this file. The program only cares about the first line of this file.
+Special thanks to Apophenic (Justin Dayer) for his help in developing this system.
