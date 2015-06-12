@@ -9,8 +9,6 @@
 #include <Psapi.h>
 #include <stdio.h>
 #include "resource.h"
-//#include <fstream>
-//#include <string>
 
 #define WM_TRAYICON (WM_USER + 1)
 
