@@ -16,9 +16,11 @@
 // Microsoft may change these at any time; they are not guaranteed to work on the next version of Windows.
 typedef LONG(NTAPI* _NtSuspendProcess) (IN HANDLE ProcessHandle);
 typedef LONG(NTAPI* _NtResumeProcess) (IN HANDLE ProcessHandle);
+typedef HWND(NTAPI* _HungWindowFromGhostWindow) (IN HWND hwndGhost);
 
 _NtSuspendProcess NtSuspendProcess = (_NtSuspendProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSuspendProcess");
 _NtResumeProcess NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtResumeProcess");
+_HungWindowFromGhostWindow HungWindowFromGhostWindow = (_HungWindowFromGhostWindow)GetProcAddress(GetModuleHandle(L"user32.dll"), "HungWindowFromGhostWindow");
 
 NOTIFYICONDATA G_TrayNotifyIconData;
 HANDLE         G_Mutex;
@@ -239,7 +241,8 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 	int PauseKey = LoadPauseKeyFromSettingsFile(L"settings.txt");
 
 	MSG        SysTrayWindowMessage                 = { 0 };
-	DWORD      PreviouslySuspendedProcessID         = 0;	
+	DWORD      PreviouslySuspendedProcessID			= 0;
+	HWND	   PreviouslySuspendedWnd				= 0;
 	wchar_t    PreviouslySuspendedProcessText[256]  = { 0 };
 	HANDLE     ProcessHandle                        = 0;
 	static int PauseKeyWasDown                      = 0;
@@ -256,6 +259,20 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 		if (PauseKeyIsDown && !PauseKeyWasDown)
 		{
 			HWND ForegroundWindow = GetForegroundWindow();
+
+			// Check if the focused window is in a non-responsive state.
+			if (IsHungAppWindow(ForegroundWindow)) {
+				// If the foreground window is non-responsive the current value of ForegroundWindow will differ
+				// from the actual application window handle (used when the process was first suspended).
+				// In this case we should check if the non-responsive foreground window is associated with a
+				// previously suspended process.
+				// This is done by checking if the ghost window (created by windows dwm.exe) returns the correct handle to the original window.
+				HWND nonResponsiveWnd = HungWindowFromGhostWindow(ForegroundWindow);
+				if (nonResponsiveWnd == PreviouslySuspendedWnd) {
+					ForegroundWindow = PreviouslySuspendedWnd;
+				}
+			}
+
 			if (!ForegroundWindow)
 			{
 				MessageBox(NULL, L"Unable to detect foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
@@ -288,6 +305,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 				{
 					NtSuspendProcess(ProcessHandle);
 					PreviouslySuspendedProcessID = ProcessID;
+					PreviouslySuspendedWnd = ForegroundWindow;
 					GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
 				}
 				else
@@ -299,6 +317,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 			{
 				NtResumeProcess(ProcessHandle);
 				PreviouslySuspendedProcessID = 0;
+				PreviouslySuspendedWnd = 0;
 				memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
 			}
 			else
@@ -327,7 +346,8 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 					else
 					{
 						// The paused process is no more, so reset.
-						PreviouslySuspendedProcessID = 0;									
+						PreviouslySuspendedProcessID = 0;
+						PreviouslySuspendedWnd = 0;
 						memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
 					}
 				}
@@ -346,6 +366,7 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 			__try
 			{
 				CloseHandle(ProcessHandle);
+				ProcessHandle = NULL;
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
