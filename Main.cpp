@@ -2,7 +2,7 @@
 // UniversalPauseButton
 // Ryan Ries, 2015
 // ryan@myotherpcisacloud.com
-//
+// https://github.com/ryanries/UniversalPauseButton/
 // Must compile in Unicode.
 
 #include <Windows.h>
@@ -16,14 +16,14 @@
 // Microsoft may change these at any time; they are not guaranteed to work on the next version of Windows.
 typedef LONG(NTAPI* _NtSuspendProcess) (IN HANDLE ProcessHandle);
 typedef LONG(NTAPI* _NtResumeProcess) (IN HANDLE ProcessHandle);
-typedef HWND(NTAPI* _HungWindowFromGhostWindow) (IN HWND hwndGhost);
+typedef HWND(NTAPI* _HungWindowFromGhostWindow) (IN HWND GhostWindowHandle);
 
 _NtSuspendProcess NtSuspendProcess = (_NtSuspendProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSuspendProcess");
 _NtResumeProcess NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtResumeProcess");
 _HungWindowFromGhostWindow HungWindowFromGhostWindow = (_HungWindowFromGhostWindow)GetProcAddress(GetModuleHandle(L"user32.dll"), "HungWindowFromGhostWindow");
 
 NOTIFYICONDATA G_TrayNotifyIconData;
-HANDLE         G_Mutex;
+HANDLE G_Mutex;
 
 // NOTE(Ryan): This function returns true if the string ends with the specified Suffix/substring.
 // Uses wide characters. Not case sensitive.
@@ -182,6 +182,12 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 		return(E_FAIL);
 	}
 
+	if (HungWindowFromGhostWindow == NULL)
+	{
+		MessageBox(NULL, L"Unable to load HungWindowFromGhostWindow from user32.dll!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
+		return(E_FAIL);
+	}
+
 	WNDCLASS SysTrayWindowClass = { 0 };
 
 	SysTrayWindowClass.style         = CS_HREDRAW | CS_VREDRAW;
@@ -261,14 +267,16 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE, _In_ LPSTR, _I
 			HWND ForegroundWindow = GetForegroundWindow();
 
 			// Check if the focused window is in a non-responsive state.
-			if (IsHungAppWindow(ForegroundWindow)) {
+			if (IsHungAppWindow(ForegroundWindow)) 
+			{
 				// If the foreground window is non-responsive the current value of ForegroundWindow will differ
 				// from the actual application window handle (used when the process was first suspended).
 				// In this case we should check if the non-responsive foreground window is associated with a
 				// previously suspended process.
 				// This is done by checking if the ghost window (created by windows dwm.exe) returns the correct handle to the original window.
 				HWND nonResponsiveWnd = HungWindowFromGhostWindow(ForegroundWindow);
-				if (nonResponsiveWnd == PreviouslySuspendedWnd) {
+				if (nonResponsiveWnd == PreviouslySuspendedWnd) 
+				{
 					ForegroundWindow = PreviouslySuspendedWnd;
 				}
 			}
