@@ -125,7 +125,7 @@ int LoadPauseKeyFromSettingsFile(_In_ wchar_t* Filename)
 		}
 
 		size_t Length = strlen(KeyLine);
-		if (Length > 30)
+		if (Length > 20)
 		{
 			goto Default;
 		}
