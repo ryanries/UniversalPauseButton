@@ -417,9 +417,17 @@ int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PreviousInstanc
 
 					if (PreviouslySuspendedProcessIsStillRunning)
 					{
+						NtResumeProcess(OpenProcess(PROCESS_ALL_ACCESS, FALSE, PreviouslySuspendedProcessID));
+
 						wchar_t MessageBoxBuffer[1024] = { 0 };
 
-						_snwprintf_s(MessageBoxBuffer, sizeof(MessageBoxBuffer), _TRUNCATE, L"You must first unpause %s (PID %d) before pausing another program.", PreviouslySuspendedProcessText, PreviouslySuspendedProcessID);
+						_snwprintf_s(MessageBoxBuffer, sizeof(MessageBoxBuffer), _TRUNCATE, L"Resumed %s (PID %d)", PreviouslySuspendedProcessText, PreviouslySuspendedProcessID);
+
+						PreviouslySuspendedProcessID = 0;
+
+						PreviouslySuspendedWnd = 0;
+
+						memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
 
 						MessageBox(ForegroundWindow, MessageBoxBuffer, L"Universal Pause Button", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
 					}
