@@ -1,3 +1,5 @@
+<img alt="GitHub all releases" src="https://img.shields.io/github/downloads/ryanries/UniversalPauseButton/total">
+
 # Universal Pause Button
 ------------------------
 
