@@ -73,7 +73,7 @@ If TrayIcon is enabled, which it is by default, there will be a small system tra
 	Maximum: n/a
 	
 
-If ProcessNameToPause is defined, then the app will only pause that process by name. E.g., notepad.exe or mycoolgame.exe. Include the .exe file extension. It expects process name, not Window text. WARNING: In case there are multiple processes with the same name, only the first instance found will be paused. Please don't try dumb things like trying to pause svchost.exe or lsass.exe or csrss.exe...
+If ProcessNameToPause is defined, then the app will only pause that process by name, regardless of foreground window. E.g., notepad.exe or mycoolgame.exe. Include the .exe file extension. It expects process name, not Window text. WARNING: In case there are multiple processes with the same name, only the first instance found will be paused. Please don't try dumb things like trying to pause svchost.exe or lsass.exe or csrss.exe...
 
 
 As always, please try it out, and let me know if you find any bugs or have any feature requests.
