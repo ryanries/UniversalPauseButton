@@ -47,7 +47,35 @@ By enabling this Debug setting, the app spawns a debug console that allows you t
 	Maximum: 0xFE
 	
 
-This is the customizable Pause key. By default, it is 0x13, which is the virtual key code for the physical Pause/Break key on your keyboard. For a list of virtual key codes so that you can map this to another key, use the virtual key codes defined in the Windows documentation here: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+This is the customizable Pause key. By default, it is 0x13, which is the virtual key code for the Pause/Break key on your keyboard. For a list of virtual key codes so that you can map this to another key, use the virtual key codes defined in the Windows documentation here: https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 
+**TrayIcon**
 
+    Type: DWORD
 	
+    Default: 1
+	
+	Minimum: 0
+	
+	Maximum: 1
+
+
+If TrayIcon is enabled, which it is by default, there will be a small system tray icon that looks like a pause button. When you click that icon it will give you a dialog box asking if you want to exit the app. If you turn TrayIcon off, there will be no tray icon, no taskbar icon, no nothing. The app will be completely invisible and in the background. I added this feature because someone requested it, saying that they use a custom shell other than Explorer.exe, and since they didn't have a system tray in their shell, the app wouldn't work. Well, here you go, Mr. Alternative Shell.
+
+**ProcessNameToPause**
+
+    Type: REG_SZ (String)
+	
+	Default: "" (Empty string)
+	
+	Minimum: n/a
+	
+	Maximum: n/a
+	
+
+If ProcessNameToPause is defined, then the app will only pause that process by name. E.g., notepad.exe or mycoolgame.exe. Include the .exe file extension. It expects process name, not Window text. WARNING: In case there are multiple processes with the same name, only the first instance found will be paused. Please don't try dumb things like trying to pause svchost.exe or lsass.exe or csrss.exe...
+
+
+As always, please try it out, and let me know if you find any bugs or have any feature requests.
+
+Thanks!
