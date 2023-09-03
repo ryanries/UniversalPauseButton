@@ -40,6 +40,5 @@ u32 LoadRegistrySettings(void);
 void MsgBox(const wchar_t* Message, const wchar_t* Caption, u32 Flags, ...);
 void DbgPrint(const wchar_t* Message, ...);
 LRESULT CALLBACK SysTrayCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam);
-//LRESULT CALLBACK LowLevelKeyboardProc(_In_ int nCode, _In_ WPARAM wParam, _In_ LPARAM lParam);
 void HandlePauseKeyPress(void);
 void UnpausePreviouslyPausedProcess(void);
