@@ -1,7 +1,7 @@
 # Universal Pause Button
 ------------------------
 
-<img src="https://github.com/ryanries/UniversalPauseButton/blob/master/NiceLogo.png" width="128" height="128" align="center">
+<img src="https://github.com/ryanries/UniversalPauseButton/blob/master/NiceLogo.png" width="128" height="128" alt="Universal Pause Button"> Pause.
 
 I like to play video games. I also have a significant other, and she often walks into the room to talk to me while I'm playing video games. I would like to pause the game so that I can give her my undivided attention while she's talking to me, but a lot of games (particularly single-player ones) have these "un-pausable" cut scenes or other areas of the game where the normal pause functionality doesn't work.  This annoys both me and her, because I'm supposed to be the computer expert, and it looks like I don't even know how to pause my stupid video game.  So usually what ends up happening is I skip the cut scene and miss the story, or upset my SO by not paying attention to her as well as I should.
 
