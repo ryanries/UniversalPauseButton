@@ -13,7 +13,7 @@ Back in 2015, I used this app with The Witcher 3, and it worked great.
 
 Today in 2023, I used this app with Baldur's Gate 3 and it is still working great.
 
-However, your mileage may vary. "Pausing" processes is something that usually only debuggers do, and not every process will react the same way to being paused. Pausing processes may lead to race conditions among the threads of that process, but like I said, testing has been very positive for me so far. I've already gotten great value out of the program, as there are lots of cut scenes in The Witcher 3 that I don't want to skip. The main use case for this app is single player games, as pausing your multi-player game will undoubtedly just get you kicked from the session, as if your computer had just crashed or hung. So don't use it in multi-player games. It also works on applications that are not games at all.
+However, your mileage may vary. It does not work with every app/game. "Pausing" processes is something that usually only debuggers do, and not every process will react the same way to being paused. Pausing processes may lead to race conditions among the threads of that process, but like I said, testing has been very positive for me so far. I've already gotten great value out of the program, as there are lots of cut scenes in The Witcher 3 that I don't want to skip. The main use case for this app is single player games, as pausing your multi-player game will undoubtedly just get you kicked from the session, as if your computer had just crashed or hung. So don't use it in multi-player games. It also works on applications that are not games at all.
 
 There are some new registry settings you should be aware of:
 
