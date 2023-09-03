@@ -1,86 +1,496 @@
 // Main.c
 // UniversalPauseButton
-// Ryan Ries, 2015-2020
+// Joseph Ryan Ries, 2015-2023
 // ryanries09@gmail.com
 // https://github.com/ryanries/UniversalPauseButton/
-// Must compile in Unicode.
 
-#include <Windows.h>
-
-#include <Psapi.h>
-
-#include <stdio.h>
-
-#include "resource.h"
+#ifndef UNICODE
+#define UNICODE
+#endif
+#ifndef _UNICODE
+#define _UNICODE
+#endif
 
 #define WM_TRAYICON (WM_USER + 1)
 
-// WARNING: Undocumented Win32 API functions!
-// Microsoft may change these at any time; they are not guaranteed to work on the next version of Windows.
+#include <Windows.h>
+#include <stdio.h>
+#include <TlHelp32.h>
+#include "Main.h"
+#include "resource.h"
 
-typedef LONG(NTAPI* _NtSuspendProcess) (IN HANDLE ProcessHandle);
-
-typedef LONG(NTAPI* _NtResumeProcess) (IN HANDLE ProcessHandle);
-
-typedef HWND(NTAPI* _HungWindowFromGhostWindow) (IN HWND GhostWindowHandle);
-
-_NtSuspendProcess NtSuspendProcess;
-
-_NtResumeProcess NtResumeProcess;
-
-_HungWindowFromGhostWindow HungWindowFromGhostWindow;
-
-NOTIFYICONDATA gTrayNotifyIconData;
-
+CONFIG gConfig;
+HANDLE gDbgConsole = INVALID_HANDLE_VALUE;
+BOOL gIsRunning = TRUE;
 HANDLE gMutex;
+NOTIFYICONDATA gTrayNotifyIconData;
+BOOL gIsPaused;
+u32 gPreviouslyPausedProcessId;
 
-BOOL gAppShouldRun = TRUE;
+int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _In_ PWSTR CmdLine, _In_ int CmdShow)
+{	
+	UNREFERENCED_PARAMETER(PrevInstance);
+	UNREFERENCED_PARAMETER(CmdLine);
+	UNREFERENCED_PARAMETER(CmdShow);
 
-// NOTE(Ryan): This function returns true if the string ends with the specified Suffix/substring.
-// Uses wide characters. Not case sensitive.
-int StringEndsWith_WI(_In_ const wchar_t *String, _In_ const wchar_t *Ending)
-{
-	if (String == NULL || Ending == NULL)
+	HMODULE NtDll = NULL;
+	MSG WndMsg = { 0 };
+	//HHOOK KeyboardHook = NULL;
+
+	if (LoadRegistrySettings() != ERROR_SUCCESS)
 	{
-		return(0);
+		goto Exit;
 	}
 
-	size_t StringLength = wcslen(String);
+	gMutex = CreateMutexW(NULL, FALSE, APPNAME);
 
-	size_t EndingLength = wcslen(Ending);
-
-	if (EndingLength > StringLength)
+	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
-		return(0);
+		MsgBox(L"An instance of the program is already running.", APPNAME L" Error", MB_OK | MB_ICONERROR);
+		goto Exit;
 	}
+	if ((NtDll = GetModuleHandleW(L"ntdll.dll")) == NULL)
+	{
+		MsgBox(L"Unable to locate ntdll.dll!\nError: 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+		goto Exit;
+	}
+	if ((NtSuspendProcess = (_NtSuspendProcess)((void*)GetProcAddress(NtDll, "NtSuspendProcess"))) == NULL)
+	{
+		MsgBox(L"Unable to locate the NtSuspendProcess procedure in the ntdll.dll module!", APPNAME L" Error", MB_OK | MB_ICONERROR);
+		goto Exit;
+	}
+	if ((NtResumeProcess = (_NtResumeProcess)((void*)GetProcAddress(NtDll, "NtResumeProcess"))) == NULL)
+	{
+		MsgBox(L"Unable to locate the NtResumeProcess procedure in the ntdll.dll module!", APPNAME L" Error", MB_OK | MB_ICONERROR);
+		goto Exit;
+	}
+
+	// There will be no visible window either way, but in one case, there will be a system tray icon,
+	// and in the other case there will be no icon. This is because someone requested that I make this
+	// app work even when the user has no shell (explorer.exe) or has replaced their shell with an alternative shell.
+	// The Windows system tray API obviously won't work if there is no Windows system tray. I don't know if the user's
+	// shell even has a taskbar so I'm skipping that too.
+
+	if (gConfig.TrayIcon)
+	{
+		WNDCLASSW WndClass = { 0 };
+		HWND HWnd = NULL;
+
+		WndClass.hInstance = Instance;
+		WndClass.lpszClassName = APPNAME L"_WndClass";
+		WndClass.lpfnWndProc = SysTrayCallback;
+
+		if (RegisterClassW(&WndClass) == 0)
+		{
+			MsgBox(L"Failed to register WindowClass! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+			goto Exit;
+		}
 	
-	return(0 == _wcsnicmp(String + StringLength - EndingLength, Ending, EndingLength));
-}
+		HWnd = CreateWindowExW(		
+			WS_EX_TOOLWINDOW,		
+			WndClass.lpszClassName,
+			APPNAME L"_Systray_Window",
+			WS_ICONIC,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
+			0,
+			0,
+			Instance,
+			0);
+	
+		if (HWnd == NULL)
+		{
+			MsgBox(L"Failed to create window! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+			goto Exit;
+		}
 
-// NOTE(Ryan): This function returns true if the string starts with the specified prefix/substring.
-// ASCII characters. Not case sensitive.
-int StringStartsWith_AI(_In_ const char* String, _In_ const char* Beginning)
-{
-	if (String == NULL || Beginning == NULL)
-	{
-		return(0);
+		gTrayNotifyIconData.cbSize = sizeof(NOTIFYICONDATA);
+		gTrayNotifyIconData.hWnd = HWnd;	
+		gTrayNotifyIconData.uID = 1982;
+		gTrayNotifyIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+		gTrayNotifyIconData.uCallbackMessage = WM_TRAYICON;
+		wcscpy_s(gTrayNotifyIconData.szTip, _countof(gTrayNotifyIconData.szTip), APPNAME L" v" VERSION);
+		gTrayNotifyIconData.hIcon = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(IDI_ICON1), IMAGE_ICON, 0, 0, 0);
+
+		if (gTrayNotifyIconData.hIcon == NULL)
+		{
+			MsgBox(L"Failed to load systray icon resource!", APPNAME L" Error", MB_OK | MB_ICONERROR);
+			goto Exit;
+		}
+
+		if (Shell_NotifyIconW(NIM_ADD, &gTrayNotifyIconData) == FALSE)
+		{
+			MsgBox(L"Failed to register systray icon!", APPNAME L" Error", MB_OK | MB_ICONERROR);
+			goto Exit;
+		}
 	}
 
-	size_t PrefixLength = strlen(Beginning);
+	if (RegisterHotKey(NULL, 1, MOD_NOREPEAT, gConfig.PauseKey) == 0)
+	{
+		MsgBox(L"Failed to register hotkey! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+		goto Exit;
+	}
 
-	size_t StringLength = strlen(String);
+	DbgPrint(L"Registered hotkey 0x%x.", gConfig.PauseKey);
 
-	return(StringLength < PrefixLength ? FALSE : _strnicmp(String, Beginning, PrefixLength) == 0);
+	while (gIsRunning)
+	{
+		while (PeekMessageW(&WndMsg, NULL, 0, 0, PM_REMOVE))
+		{
+			if (WndMsg.message == WM_HOTKEY)
+			{
+				HandlePauseKeyPress();
+			}
+
+			DispatchMessageW(&WndMsg);
+		}
+
+		Sleep(5);
+	}
+
+Exit:
+	return(0);
 }
 
+void HandlePauseKeyPress(void)
+{
+	HANDLE ProcessHandle = NULL;
+	HANDLE ProcessSnapshot = NULL;
+	PROCESSENTRY32W ProcessEntry = { sizeof(PROCESSENTRY32W) };
+	u32 ProcessId = 0;
+	
+	// Either we configured it to pause/un-pause a specified process, or we will pause/un-pause
+	// the currently in-focus foreground window.
+	if (wcslen(gConfig.ProcessNameToPause) > 0)
+	{
+		if (gIsPaused)
+		{
+			// Process currently paused, need to un-pause it.
+			UnpausePreviouslyPausedProcess();
+		}
+		else
+		{
+			// Process needs to be paused.
+			DbgPrint(L"Pause key pressed. Attempting to pause named process %s...", gConfig.ProcessNameToPause);
+			ProcessSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+			if (ProcessSnapshot == INVALID_HANDLE_VALUE)
+			{
+				MsgBox(L"Failed to create snapshot of running processes! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+				goto Exit;
+			}
 
-// The WindowProc (callback) for WinMain's WindowClass.
-// Basically the system tray does nothing except lets the user know that it's running.
-// If the user clicks the tray icon in any way it will ask if they want to exit the app.
-LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam)
+			if (Process32FirstW(ProcessSnapshot, &ProcessEntry) == FALSE)
+			{
+				MsgBox(L"Failed to retrieve list of running processes! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+				goto Exit;
+			}
+
+			do
+			{
+				if (_wcsicmp(ProcessEntry.szExeFile, gConfig.ProcessNameToPause) == 0)
+				{
+					ProcessId = ProcessEntry.th32ProcessID;
+					DbgPrint(L"Found process %s with PID %d.", ProcessEntry.szExeFile, ProcessId);
+					break;
+				}
+			} while (Process32NextW(ProcessSnapshot, &ProcessEntry));
+
+			if (ProcessId == 0)
+			{
+				DbgPrint(L"Unable to locate any process with the name %s!", gConfig.ProcessNameToPause);
+				goto Exit;
+			}
+			ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessId);
+			if (ProcessHandle == NULL)
+			{
+				MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, ProcessId, GetLastError());
+				goto Exit;
+			}
+			NtSuspendProcess(ProcessHandle);
+			gIsPaused = TRUE;
+			gPreviouslyPausedProcessId = ProcessId;
+			DbgPrint(L"Process paused!");
+		}		
+	}
+	else
+	{
+		if (gIsPaused)
+		{
+			// Process currently paused, need to un-pause it.
+			UnpausePreviouslyPausedProcess();
+		}
+		else
+		{			
+			// Process needs to be paused.
+			DbgPrint(L"Pause key pressed. Attempting to pause current foreground window...");
+			HWND ForegroundWindow = GetForegroundWindow();
+			if (ForegroundWindow == NULL)
+			{
+				MsgBox(L"Failed to detect foreground window!", APPNAME L" Error", MB_OK | MB_ICONERROR);
+				goto Exit;
+			}
+			GetWindowThreadProcessId(ForegroundWindow, &ProcessId);
+			if (ProcessId == 0)
+			{
+				MsgBox(L"Failed to get PID from foreground window! Error code 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+				goto Exit;
+			}
+			ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessId);
+			if (ProcessHandle == NULL)
+			{
+				MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, ProcessId, GetLastError());
+				goto Exit;
+			}
+			NtSuspendProcess(ProcessHandle);
+			gIsPaused = TRUE;
+			gPreviouslyPausedProcessId = ProcessId;
+			DbgPrint(L"Process paused!");
+		}		
+	}
+
+Exit:
+	if (ProcessSnapshot && ProcessSnapshot != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(ProcessSnapshot);
+	}
+	if (ProcessHandle)
+	{
+		CloseHandle(ProcessHandle);
+	}
+}
+
+void UnpausePreviouslyPausedProcess(void)
+{	
+	HANDLE ProcessHandle = NULL;
+	DbgPrint(L"Pause key pressed. Attempting to un-pause previously paused PID %d.", gPreviouslyPausedProcessId);
+
+	ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, gPreviouslyPausedProcessId);
+	if (ProcessHandle == NULL)
+	{
+		// Maybe the previously paused process was killed, no longer exists?
+		MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, gPreviouslyPausedProcessId, GetLastError());		
+	}
+	else
+	{
+		NtResumeProcess(ProcessHandle);
+		DbgPrint(L"Un-pause successful.");
+	}	
+	gIsPaused = FALSE;
+	gPreviouslyPausedProcessId = 0;
+	if (ProcessHandle)
+	{
+		CloseHandle(ProcessHandle);
+	}
+}
+
+u32 LoadRegistrySettings(void)
+{
+	u32 Result = ERROR_SUCCESS;
+	HKEY RegKey = NULL;
+
+	typedef struct _REG_SETTING
+	{
+		wchar_t* Name;
+		u32 DataType;
+		void* DefaultValue;
+		void* MinValue;
+		void* MaxValue;
+		void* Destination;
+	} REG_SETTING;
+
+	REG_SETTING Settings[] = {
+		{	// Debug should always be the first setting loaded.
+			.Name = L"Debug",
+			.DataType = REG_DWORD,
+			.DefaultValue = &(u32) { 0 },
+			.MinValue = &(u32) { 0 },
+			.MaxValue = &(u32) { 1 },
+			.Destination = &gConfig.Debug
+		},
+		{
+			.Name = L"TrayIcon",
+			.DataType = REG_DWORD,
+			.DefaultValue = &(u32) { 1 },
+			.MinValue = &(u32) { 0 },
+			.MaxValue = &(u32) { 1 },
+			.Destination = &gConfig.TrayIcon
+		},
+		{
+			.Name = L"PauseKey",
+			.DataType = REG_DWORD,
+			.DefaultValue = &(u32) { VK_PAUSE },
+			.MinValue = &(u32) { 1 },
+			.MaxValue = &(u32) { 0xFE },
+			.Destination = &gConfig.PauseKey
+		},
+		{
+			.Name = L"ProcessNameToPause",
+			.DataType = REG_SZ,
+			.DefaultValue = &(wchar_t[128]) { L"" },
+			.MinValue = NULL,
+			.MaxValue = NULL,
+			.Destination = &gConfig.ProcessNameToPause
+		}
+	};
+
+	Result = RegCreateKeyExW(HKEY_CURRENT_USER, L"SOFTWARE\\" APPNAME, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &RegKey, NULL);
+	if (Result != ERROR_SUCCESS)
+	{
+		MsgBox(L"Failed to load registry settings!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, Result);
+		goto Exit;
+	}
+
+	for (u32 s = 0; s < _countof(Settings); s++)
+	{
+		switch (Settings[s].DataType)
+		{
+			case REG_DWORD:
+			{
+				u32 BytesRead = sizeof(u32);
+				Result = RegGetValueW(
+					RegKey,
+					NULL,
+					Settings[s].Name,
+					RRF_RT_DWORD,
+					NULL,
+					Settings[s].Destination,
+					&BytesRead);
+				if (Result != ERROR_SUCCESS)
+				{
+					if (Result == ERROR_FILE_NOT_FOUND)
+					{
+						Result = ERROR_SUCCESS;
+						*(u32*)Settings[s].Destination = *(u32*)Settings[s].DefaultValue;
+					}
+					else
+					{
+						MsgBox(L"Failed to load registry value '%s'!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, Settings[s].Name, Result);
+						goto Exit;
+					}
+				}
+				else
+				{
+					if (*(u32*)Settings[s].Destination < *(u32*)Settings[s].MinValue || *(u32*)Settings[s].Destination > *(u32*)Settings[s].MaxValue)
+					{
+						MsgBox(L"Registry value '%s' was out of range! Using default of %d.", L"Error", MB_OK | MB_ICONWARNING, Settings[s].Name, *(u32*)Settings[s].DefaultValue);
+						*(u32*)Settings[s].Destination = *(u32*)Settings[s].DefaultValue;
+					}
+				}
+
+				// Enable the debug console as early as possible if configured.
+				// This is so the debug console can report on the other registry settings.
+				if (Settings[s].Destination == &gConfig.Debug)
+				{
+					if (gConfig.Debug)
+					{
+						if (AllocConsole() == FALSE)
+						{
+							MsgBox(L"Failed to allocate debug console!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
+							goto Exit;
+						}
+						gDbgConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+						if (gDbgConsole == INVALID_HANDLE_VALUE)
+						{
+							MsgBox(L"Failed to get stdout debug console handle!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
+							goto Exit;
+						}
+						DbgPrint(L"%s version %s.", APPNAME, VERSION);
+						DbgPrint(L"To disable this debug console, delete the 'Debug' reg setting at HKCU\\SOFTWARE\\%s", APPNAME);
+					}
+				}
+
+				DbgPrint(L"Using value 0n%d (0x%x) for registry setting '%s'.", *(u32*)Settings[s].Destination, *(u32*)Settings[s].Destination, Settings[s].Name);
+
+				break;
+			}
+			case REG_SZ:
+			{
+				u32 BytesRead = 128 * sizeof(wchar_t);
+				Result = RegGetValueW(
+					RegKey,
+					NULL,
+					Settings[s].Name,
+					RRF_RT_REG_SZ,
+					NULL,
+					Settings[s].Destination,
+					&BytesRead);
+				if (Result != ERROR_SUCCESS)
+				{
+					if (Result == ERROR_FILE_NOT_FOUND)
+					{
+						Result = ERROR_SUCCESS;						
+					}
+					else
+					{
+						MsgBox(L"Failed to load registry value '%s'!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, Settings[s].Name, Result);
+						goto Exit;
+					}
+				}
+
+				DbgPrint(L"Using value '%s' for registry setting '%s'.", Settings[s].Destination, Settings[s].Name);
+
+				break;
+			}
+			default:
+			{
+				MsgBox(L"Registry value '%s' was not of the expected data type!", L"Error", MB_OK | MB_ICONERROR, Settings[s].Name);
+				goto Exit;
+			}
+		}
+	}
+
+Exit:
+	if (RegKey != NULL)
+	{
+		RegCloseKey(RegKey);
+	}
+	return(Result);
+}
+
+void MsgBox(const wchar_t* Message, const wchar_t* Caption, u32 Flags, ...)
+{
+	wchar_t FormattedMessage[1024] = { 0 };
+	va_list Args = NULL;
+
+	va_start(Args, Flags);
+	_vsnwprintf_s(FormattedMessage, _countof(FormattedMessage), _TRUNCATE, Message, Args);
+	va_end(Args);
+	DbgPrint(FormattedMessage);
+	MessageBoxW(NULL, FormattedMessage, Caption, Flags);
+}
+
+void DbgPrint(const wchar_t* Message, ...)
+{
+	if (gConfig.Debug == FALSE || gDbgConsole == INVALID_HANDLE_VALUE)
+	{
+		return;
+	}
+
+	wchar_t FormattedMessage[1024] = { 0 };
+	u32 MsgLen = 0;
+	wchar_t TimeString[64] = { 0 };
+	SYSTEMTIME Time;
+	va_list Args = NULL;
+
+	va_start(Args, Message);
+	_vsnwprintf_s(FormattedMessage, _countof(FormattedMessage), _TRUNCATE, Message, Args);
+	va_end(Args);
+
+	MsgLen = (u32)wcslen(FormattedMessage);
+	FormattedMessage[MsgLen] = '\n';
+	FormattedMessage[MsgLen + 1] = '\0';
+
+	GetLocalTime(&Time);
+	_snwprintf_s(TimeString, _countof(TimeString), _TRUNCATE, L"[%02d.%02d.%04d %02d.%02d.%02d.%03d] ", Time.wMonth, Time.wDay, Time.wYear, Time.wHour, Time.wMinute, Time.wSecond, Time.wMilliseconds);
+	WriteConsoleW(gDbgConsole, TimeString, (u32)wcslen(TimeString), NULL, NULL);
+	WriteConsoleW(gDbgConsole, FormattedMessage, (u32)wcslen(FormattedMessage), NULL, NULL);	
+}
+
+LRESULT CALLBACK SysTrayCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam)
 {
 	LRESULT Result = 0;
-
 	static BOOL QuitMessageBoxIsShowing = FALSE;
 
 	switch (Message)
@@ -90,13 +500,10 @@ LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ W
 			if (!QuitMessageBoxIsShowing && (LParam == WM_LBUTTONDOWN || LParam == WM_RBUTTONDOWN || LParam == WM_MBUTTONDOWN))
 			{
 				QuitMessageBoxIsShowing = TRUE;
-
-				if (MessageBox(Window, L"Quit UniversalPauseButton?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION | MB_SYSTEMMODAL) == IDYES)
+				if (MessageBox(Window, L"Quit " APPNAME L"?", L"Are you sure?", MB_YESNO | MB_ICONQUESTION | MB_SYSTEMMODAL) == IDYES)
 				{
 					Shell_NotifyIconW(NIM_DELETE, &gTrayNotifyIconData);
-
-					gAppShouldRun = FALSE;
-
+					gIsRunning = FALSE;
 					PostQuitMessage(0);
 				}
 				else
@@ -108,359 +515,9 @@ LRESULT CALLBACK WindowClassCallback(_In_ HWND Window, _In_ UINT Message, _In_ W
 		}
 		default:
 		{
-			Result = DefWindowProc(Window, Message, WParam, LParam);
-
+			Result = DefWindowProcW(Window, Message, WParam, LParam);
 			break;
 		}
 	}
 	return(Result);
-}
-
-// Returns 0x13 (VK_PAUSE) upon any failure. Therefore, the Pause/Break key is the default.
-// The first line of the file must begin with KEY=...
-int LoadPauseKeyFromSettingsFile(_In_ wchar_t* Filename)
-{
-	HANDLE FileHandle = CreateFile(Filename, GENERIC_READ, FILE_SHARE_READ,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,	NULL);
-
-	if (FileHandle == INVALID_HANDLE_VALUE)
-	{
-		goto Default;
-	}
-	
-	char  KeyLine[32] = { 0 };
-	char  Buffer[2]   = { 0 };
-	DWORD ByteRead    = 0;
-
-	do
-	{
-		if (!ReadFile(FileHandle, Buffer, 1, &ByteRead, NULL))
-		{
-			goto Default;
-		}
-
-		if (Buffer[0] == '\r' || Buffer[0] == '\n')
-		{
-			break;
-		}
-
-		size_t Length = strlen(KeyLine);
-		if (Length > 20)
-		{
-			goto Default;
-		}
-
-		KeyLine[Length] = Buffer[0];		
-		memset(Buffer, 0, sizeof(Buffer));
-	} while (ByteRead == 1);
-
-	if (!StringStartsWith_AI(KeyLine, "KEY="))
-	{
-		goto Default;
-	}
-
-	char KeyNumberAsString[16] = { 0 };
-
-	for (DWORD Counter = 4; Counter < strlen(KeyLine); Counter++)
-	{
-		KeyNumberAsString[Counter - 4] = KeyLine[Counter];
-	}
-
-	long StringToNumber = strtol(KeyNumberAsString, NULL, 16);
-	if (StringToNumber < 0x01 || StringToNumber > 0xFF)
-	{
-		goto Default;
-	}
-
-	if (FileHandle != INVALID_HANDLE_VALUE && FileHandle != NULL)
-	{
-		CloseHandle(FileHandle);
-	}
-	return(StringToNumber);	
-
-Default:
-	if (FileHandle != INVALID_HANDLE_VALUE && FileHandle != NULL)
-	{
-		CloseHandle(FileHandle);		
-	}
-	return(0x13);	
-}
-
-// Entry point.
-int CALLBACK WinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PreviousInstance, _In_ LPSTR CommandLine, _In_ int CommandShow)
-{
-	UNREFERENCED_PARAMETER(PreviousInstance);
-
-	UNREFERENCED_PARAMETER(CommandLine);
-
-	UNREFERENCED_PARAMETER(CommandShow);
-
-	gMutex = CreateMutex(NULL, FALSE, L"UniversalPauseButton");
-
-	if (GetLastError() == ERROR_ALREADY_EXISTS)
-	{
-		MessageBox(NULL, L"An instance of the program is already running.", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(ERROR_ALREADY_EXISTS);
-	}
-
-	if ((NtSuspendProcess = (_NtSuspendProcess)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSuspendProcess")) == NULL)
-	{
-		MessageBox(NULL, L"Unable to locate the NtSuspendProcess procedure in the ntdll.dll module!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(E_FAIL);
-	}
-
-	if ((NtResumeProcess = (_NtResumeProcess)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtResumeProcess")) == NULL)
-	{
-		MessageBox(NULL, L"Unable to locate the NtResumeProcess procedure in the ntdll.dll module!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(E_FAIL);
-	}
-
-	if ((HungWindowFromGhostWindow = (_HungWindowFromGhostWindow)GetProcAddress(GetModuleHandleW(L"user32.dll"), "HungWindowFromGhostWindow")) == NULL)
-	{
-		MessageBox(NULL, L"Unable to locate the HungWindowFromGhostWindow procedure in the user32.dll module!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(E_FAIL);
-	}
-
-
-	WNDCLASS SysTrayWindowClass = { 0 };
-
-	SysTrayWindowClass.style         = CS_HREDRAW | CS_VREDRAW;
-
-	SysTrayWindowClass.hInstance     = Instance;
-
-	SysTrayWindowClass.lpszClassName = L"UniversalPauseButton_Systray_WindowClass";
-
-	SysTrayWindowClass.hbrBackground = CreateSolidBrush(RGB(255, 0, 255));
-
-	SysTrayWindowClass.lpfnWndProc   = WindowClassCallback;
-
-	if (RegisterClass(&SysTrayWindowClass) == 0)
-	{
-		MessageBox(NULL, L"Failed to register WindowClass!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(E_FAIL);
-	}
-
-	HWND SystrayWindow = CreateWindowEx(
-		WS_EX_TOOLWINDOW,
-		SysTrayWindowClass.lpszClassName,
-		L"UniversalPauseButton_Systray_Window",
-		WS_ICONIC,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		0,
-		0,
-		Instance,
-		0);
-
-	if (SystrayWindow == 0)
-	{
-		MessageBox(NULL, L"Failed to create SystrayWindow!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(E_FAIL);
-	}
-
-	gTrayNotifyIconData.cbSize = sizeof(NOTIFYICONDATA);
-
-	gTrayNotifyIconData.hWnd = SystrayWindow;
-	
-	gTrayNotifyIconData.uID = 1982;
-
-	gTrayNotifyIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-
-	gTrayNotifyIconData.uCallbackMessage = WM_TRAYICON;
-
-	wcscpy_s(gTrayNotifyIconData.szTip, _countof(gTrayNotifyIconData.szTip), L"Universal Pause Button v1.0.4");
-
-	gTrayNotifyIconData.hIcon = (HICON)LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 0, 0, 0);
-
-	if (gTrayNotifyIconData.hIcon == NULL)
-	{
-		MessageBox(NULL, L"Failed to load systray icon resource!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(E_FAIL);
-	}
-
-	if (Shell_NotifyIconW(NIM_ADD, &gTrayNotifyIconData) == FALSE)
-	{
-		MessageBoxW(NULL, L"Failed to register systray icon!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-		return(E_FAIL);
-	}
-
-	int PauseKey = LoadPauseKeyFromSettingsFile(L"settings.txt");
-
-	MSG        SysTrayWindowMessage                 = { 0 };
-
-	DWORD      PreviouslySuspendedProcessID			= 0;
-
-	HWND	   PreviouslySuspendedWnd				= 0;
-
-	wchar_t    PreviouslySuspendedProcessText[256]  = { 0 };
-
-	HANDLE     ProcessHandle                        = 0;
-
-	static int PauseKeyWasDown                      = 0;
-
-	while (gAppShouldRun)
-	{
-		while (PeekMessage(&SysTrayWindowMessage, SystrayWindow, 0, 0, PM_REMOVE))
-		{
-			DispatchMessage(&SysTrayWindowMessage);
-		}
-
-		int PauseKeyIsDown = GetAsyncKeyState(PauseKey);
-
-		if (PauseKeyIsDown && !PauseKeyWasDown)
-		{
-			HWND ForegroundWindow = GetForegroundWindow();
-
-			// Check if the focused window is in a non-responsive state.
-			if (IsHungAppWindow(ForegroundWindow)) 
-			{
-				// If the foreground window is non-responsive the current value of ForegroundWindow will differ
-				// from the actual application window handle (used when the process was first suspended).
-				// In this case we should check if the non-responsive foreground window is associated with a
-				// previously suspended process.
-				// This is done by checking if the ghost window (created by windows dwm.exe) returns the correct handle to the original window.
-				HWND nonResponsiveWnd = HungWindowFromGhostWindow(ForegroundWindow);
-
-				if (nonResponsiveWnd == PreviouslySuspendedWnd) 
-				{
-					ForegroundWindow = PreviouslySuspendedWnd;
-				}
-			}
-
-			if (!ForegroundWindow)
-			{
-				MessageBox(NULL, L"Unable to detect foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-				goto EndOfLoop;
-			}
-
-			DWORD ProcessID = 0;
-
-			GetWindowThreadProcessId(ForegroundWindow, &ProcessID);
-
-			if (ProcessID == 0)
-			{
-				MessageBoxW(NULL, L"Unable to get process ID of foreground window!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-				goto EndOfLoop;
-			}
-			
-			ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessID);
-
-			if (ProcessHandle == 0)
-			{
-				MessageBoxW(NULL, L"OpenProcess failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-
-				goto EndOfLoop;
-			}
-
-			if (PreviouslySuspendedProcessID == 0)
-			{
-				// I won't let you pause your shell. Nothing good will come of that.
-				// Later I will get the user's shell from the registry, just to cover the 0.001% case
-				// that the user has a custom shell.
-				wchar_t ImageFileName[MAX_PATH] = { 0 };
-
-				GetProcessImageFileName(ProcessHandle, ImageFileName, sizeof(ImageFileName) / sizeof(wchar_t));
-
-				if (!StringEndsWith_WI(ImageFileName, L"explorer.exe"))
-				{
-					NtSuspendProcess(ProcessHandle);
-
-					PreviouslySuspendedProcessID = ProcessID;
-
-					PreviouslySuspendedWnd = ForegroundWindow;
-
-					GetWindowText(ForegroundWindow, PreviouslySuspendedProcessText, sizeof(PreviouslySuspendedProcessText) / sizeof(wchar_t));
-				}
-				else
-				{
-					MessageBox(NULL, L"You cannot pause your shell.", L"UniversalPauseButton Error", MB_OK | MB_ICONWARNING | MB_SYSTEMMODAL);
-				}
-			}
-			else if (PreviouslySuspendedProcessID == ProcessID)
-			{
-				NtResumeProcess(ProcessHandle);
-
-				PreviouslySuspendedProcessID = 0;
-
-				PreviouslySuspendedWnd = 0;
-
-				memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
-			}
-			else
-			{
-				// The user pressed the pause button while focused on another process than what was
-				// originally paused and the first process is still paused.
-				DWORD AllProcesses[2048] = { 0 };
-				DWORD BytesReturned = 0;
-				BOOL PreviouslySuspendedProcessIsStillRunning = FALSE;
-
-				if (EnumProcesses(AllProcesses, sizeof(AllProcesses), &BytesReturned) != 0)
-				{
-					for (DWORD Counter = 0; Counter < (BytesReturned / sizeof(DWORD)); Counter++)
-					{
-						if ((AllProcesses[Counter] != 0) && AllProcesses[Counter] == PreviouslySuspendedProcessID)
-						{
-							PreviouslySuspendedProcessIsStillRunning = TRUE;										
-						}
-					}
-
-					if (PreviouslySuspendedProcessIsStillRunning)
-					{
-						wchar_t MessageBoxBuffer[1024] = { 0 };
-
-						_snwprintf_s(MessageBoxBuffer, sizeof(MessageBoxBuffer), _TRUNCATE, L"You must first unpause %s (PID %d) before pausing another program.", PreviouslySuspendedProcessText, PreviouslySuspendedProcessID);
-
-						MessageBox(ForegroundWindow, MessageBoxBuffer, L"Universal Pause Button", MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL);
-					}
-					else
-					{
-						// The paused process is no more, so reset.
-						PreviouslySuspendedProcessID = 0;
-
-						PreviouslySuspendedWnd = 0;
-
-						memset(PreviouslySuspendedProcessText, 0, sizeof(PreviouslySuspendedProcessText));
-					}
-				}
-				else
-				{
-					MessageBox(NULL, L"EnumProcesses failed!", L"UniversalPauseButton Error", MB_OK | MB_ICONERROR);
-				}
-			}
-		}
-		
-		// http://stackoverflow.com/questions/245742/examples-of-good-gotos-in-c-or-c
-	
-	EndOfLoop:
-		if (ProcessHandle != INVALID_HANDLE_VALUE && ProcessHandle != NULL)
-		{
-			__try
-			{
-				CloseHandle(ProcessHandle);
-
-				ProcessHandle = NULL;
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				// Please help me stop from throwing this exception. I hate exceptions.				
-			}
-		}
-		
-		PauseKeyWasDown = PauseKeyIsDown;
-
-		Sleep(10);
-	}
-
-	return(S_OK);
 }
