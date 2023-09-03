@@ -3,6 +3,8 @@
 
 <img src="https://github.com/ryanries/UniversalPauseButton/blob/master/NiceLogo.png" width="128" height="128" alt="Universal Pause Button"> Pause.
 
+<img alt="GitHub all releases" src="https://img.shields.io/github/downloads/ryanries/UniversalPauseButton/total">
+
 I like to play video games. I also have a significant other, and she often walks into the room to talk to me while I'm playing video games. I would like to pause the game so that I can give her my undivided attention while she's talking to me, but a lot of games (particularly single-player ones) have these "un-pausable" cut scenes or other areas of the game where the normal pause functionality doesn't work.  This annoys both me and her, because I'm supposed to be the computer expert, and it looks like I don't even know how to pause my stupid video game. So usually what ends up happening is either I skip the cut scene and miss the story, or upset my SO by not paying attention to her as well as I should.
 
 So that is why I wrote Universal Pause Button. It's a very simple Windows desktop app that sits in the system tray. Its icon resembles a pause button. When you hit the actual Pause key (also known as Break) on your keyboard, (you can also define your own custom pause key in the registry,) the program determines which window is currently in the foreground (i.e. your game's window,) and pauses it. No matter where you are in the game. Even in the middle of one of those pesky cutscenes that would otherwise be un-pausable. When you press the key again, the game will un-pause. You can also specify a process by name in the registry to pause and un-pause that process, regardless of whatever the foreground window may be.
