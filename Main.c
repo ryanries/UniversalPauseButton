@@ -163,7 +163,7 @@ void HandlePauseKeyPress(void)
 	
 	// Either we configured it to pause/un-pause a specified process, or we will pause/un-pause
 	// the currently in-focus foreground window.
-	if (wcslen(gConfig.ProcessNameToPause) > 0)
+	if (wcslen(gConfig.ProcessNameToPause) > 0 || wcslen(gConfig.ProcessNameListToPause))
 	{
 		if (gIsPaused)
 		{
@@ -332,6 +332,14 @@ u32 LoadRegistrySettings(void)
 			.MinValue = NULL,
 			.MaxValue = NULL,
 			.Destination = &gConfig.ProcessNameToPause
+		},
+		{
+			.Name = L"ProcessNameListToPause",
+			.DataType = REG_SZ,
+			.DefaultValue = &(wchar_t[1024]) { L"" },
+			.MinValue = NULL,
+			.MaxValue = NULL,
+			.Destination = &gConfig.ProcessNameListToPause
 		}
 	};
 
@@ -440,6 +448,15 @@ u32 LoadRegistrySettings(void)
 			}
 		}
 	}
+
+	// Combine ProcessNameToPause and ProcessNameListToPause
+	if (wcslen(gConfig.ProcessNameListToPause) > 0)
+	{
+		wcscat_s(gConfig.ProcessNameListToPause, sizeof(gConfig.ProcessNameListToPause), L", ");
+	}
+	wcscat_s(gConfig.ProcessNameListToPause, sizeof(gConfig.ProcessNameListToPause), gConfig.ProcessNameToPause);
+	
+	DbgPrint(L"Final List of Processes: %s.", gConfig.ProcessNameListToPause);
 
 Exit:
 	if (RegKey != NULL)

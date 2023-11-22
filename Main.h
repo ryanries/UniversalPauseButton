@@ -33,6 +33,7 @@ typedef struct _CONFIG
 	u32 TrayIcon;
 	u32 PauseKey;
 	wchar_t ProcessNameToPause[128];
+	wchar_t ProcessNameListToPause[1024];
 } CONFIG;
 
 // Function declarations.
