@@ -2,8 +2,7 @@
 
 #pragma warning(disable:4820) // padding in structures
 
-#define VERSION L"1.1.5"
-#define APPNAME L"UniversalPauseButton"
+#include "Globals.h"
 
 // The Lord's data types.
 typedef unsigned char u8;
@@ -32,8 +31,8 @@ typedef struct _CONFIG
 	u32 Debug;
 	u32 TrayIcon;
 	u32 PauseKey;
-	wchar_t ProcessNameToPause[128];
-	wchar_t ProcessNameListToPause[1024];
+	const wchar_t ProcessNameToPause[128];
+	const wchar_t ProcessNameListToPause[MAX_PROCESSES * 128];
 } CONFIG;
 
 // Function declarations.
@@ -42,4 +41,11 @@ void MsgBox(const wchar_t* Message, const wchar_t* Caption, u32 Flags, ...);
 void DbgPrint(const wchar_t* Message, ...);
 LRESULT CALLBACK SysTrayCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARAM WParam, _In_ LPARAM LParam);
 void HandlePauseKeyPress(void);
-void UnpausePreviouslyPausedProcess(void);
+i8 ResumeProcess(u32 Pid);
+u32 PidLookup(wchar_t* ProcessName);
+i8 PauseProcess(u32 Pid);
+u32 PidOfForegroundProcess(void);
+void trimWhitespaces(wchar_t* str);
+void FindRegistryPids(void);
+void FindForegroundPid(void);
+void TogglePause(void);
