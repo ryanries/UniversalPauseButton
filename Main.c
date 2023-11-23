@@ -256,7 +256,7 @@ void FindRegistryPids(void) {
 		wchar_t* token = wcstok_s(myCopy, delim, &context);
 		// loop through all process names
 		while (token != NULL) {
-			trimWhitespaces(token);
+			TrimWhitespaces(token);
 			pid = PidLookup(token);
 			if (pid) addToSet(&gPids, pid);
 			// Get the next token
@@ -344,6 +344,22 @@ i8 ResumeProcess(u32 Pid)
 	return 0;
 }
 
+void ShowDebugConsole(void) {
+	if (AllocConsole() == FALSE)
+	{
+		MsgBox(L"Failed to allocate debug console!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
+		return;
+	}
+	gDbgConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (gDbgConsole == INVALID_HANDLE_VALUE)
+	{
+		MsgBox(L"Failed to get stdout debug console handle!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
+		return;
+	}
+	DbgPrint(L"%s version %s.", APPNAME, VERSION);
+	DbgPrint(L"To disable this debug console, delete the 'Debug' reg setting at HKCU\\SOFTWARE\\%s", APPNAME);
+}
+
 u32 LoadRegistrySettings(void)
 {
 	u32 Result = ERROR_SUCCESS;
@@ -422,7 +438,7 @@ u32 LoadRegistrySettings(void)
 					Settings[s].Name,
 					RRF_RT_DWORD,
 					NULL,
-					Settings[s].Destination,
+					Settings[s].Destination,   // Registry Value is stored here
 					&BytesRead);
 				if (Result != ERROR_SUCCESS)
 				{
@@ -450,22 +466,7 @@ u32 LoadRegistrySettings(void)
 				// This is so the debug console can report on the other registry settings.
 				if (Settings[s].Destination == &gConfig.Debug)
 				{
-					if (gConfig.Debug)
-					{
-						if (AllocConsole() == FALSE)
-						{
-							MsgBox(L"Failed to allocate debug console!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
-							goto Exit;
-						}
-						gDbgConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-						if (gDbgConsole == INVALID_HANDLE_VALUE)
-						{
-							MsgBox(L"Failed to get stdout debug console handle!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
-							goto Exit;
-						}
-						DbgPrint(L"%s version %s.", APPNAME, VERSION);
-						DbgPrint(L"To disable this debug console, delete the 'Debug' reg setting at HKCU\\SOFTWARE\\%s", APPNAME);
-					}
+					if (gConfig.Debug) ShowDebugConsole();
 				}
 
 				DbgPrint(L"Using value 0n%d (0x%x) for registry setting '%s'.", *(u32*)Settings[s].Destination, *(u32*)Settings[s].Destination, Settings[s].Name);
@@ -481,7 +482,7 @@ u32 LoadRegistrySettings(void)
 					Settings[s].Name,
 					RRF_RT_REG_SZ,
 					NULL,
-					Settings[s].Destination,
+					Settings[s].Destination,    // Registry Value is stored here
 					&BytesRead);
 				if (Result != ERROR_SUCCESS)
 				{
@@ -599,11 +600,11 @@ LRESULT CALLBACK SysTrayCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARA
 }
 
 // Function to trim leading and trailing whitespaces from a wide string
-void trimWhitespaces(wchar_t* str) {
+void TrimWhitespaces(wchar_t* str) {
 	wchar_t* end;
 
 	// Trim leading whitespaces
-	while (iswspace(str)) { // iswspace returns zero (false) if the char is not a whitespace
+	while (iswspace(*str)) { // iswspace returns zero (false) if the char is not a whitespace
 		str++;  // move pointer until we find the first whitespace char
 	}
 
