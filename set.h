@@ -12,8 +12,8 @@ typedef struct {
 } Set;
 
 void initializeSet(Set* set);
-bool addToSet(Set* set, int element);
-bool removeFromSet(Set* set, int element);
-bool isInSet(const Set* set, int element);
+bool addToSet(Set* set, u32 element);
+bool removeFromSet(Set* set, u32 element);
+bool isInSet(const Set* set, u32 element);
 void printSet(const Set* set);
 bool isSetEmpty(const Set* set);

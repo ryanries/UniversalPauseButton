@@ -1,6 +1,7 @@
 #pragma once
 
 #pragma warning(disable:4820) // padding in structures
+#pragma warning(disable:4711) // automatic inline expansion
 
 #include "Globals.h"
 
@@ -28,11 +29,11 @@ _HungWindowFromGhostWindow HungWindowFromGhostWindow;
 // Configurable registry settings.
 typedef struct _CONFIG
 {
-	u32 Debug;
-	u32 TrayIcon;
-	u32 PauseKey;
-	const wchar_t ProcessNameToPause[128];
-	const wchar_t ProcessNameListToPause[MAX_PROCESSES * 128];
+  u32 Debug;
+  u32 TrayIcon;
+  u32 PauseKey;
+  wchar_t ProcessNameToPause[128];
+  wchar_t ProcessNameListToPause[MAX_PROCESSES * 128];
 } CONFIG;
 
 // Function declarations.

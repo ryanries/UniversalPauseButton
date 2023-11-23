@@ -4,6 +4,8 @@
 // ryanries09@gmail.com
 // https://github.com/ryanries/UniversalPauseButton/
 
+#pragma warning(disable: 5045) // Spectre memory vulnerability warnings
+
 #ifndef UNICODE
 #define UNICODE
 #endif

@@ -1,4 +1,5 @@
 #pragma once
+#pragma warning(disable: 5045) // Spectre memory vulnerability warnings
 
 #include "set.h"
 #include <stdio.h>
@@ -10,7 +11,7 @@ void initializeSet(Set* set) {
   set->size = 0;
 }
 
-bool addToSet(Set* set, int element) {
+bool addToSet(Set* set, u32 element) {
   // Check if the element is already in the set
   for (size_t i = 0; i < set->size; i++) {
     if (set->elements[i] == element) {
@@ -28,7 +29,7 @@ bool addToSet(Set* set, int element) {
   }
 }
 
-bool removeFromSet(Set* set, int element) {
+bool removeFromSet(Set* set, u32 element) {
   for (size_t i = 0; i < MAX_PROCESSES; i++) {
     if (set->elements[i] == element) {
       set->elements[i] = 0;
@@ -43,7 +44,7 @@ bool removeFromSet(Set* set, int element) {
   return false;  // Element is not in the set
 }
 
-bool isInSet(const Set* set, int element) {
+bool isInSet(const Set* set, u32 element) {
   for (size_t i = 0; i < set->size; i++) {
     if (set->elements[i] == element) {
       return true;  // Element is in the set
@@ -54,7 +55,7 @@ bool isInSet(const Set* set, int element) {
 
 void printSet(const Set* set) {
   printf("Set: ");
-  for (size_t i = 0; i < set->size; i++) {
+  for (size_t i = 0;  i < set->size; i++) {
     printf("%ld ", set->elements[i]);
   }
   printf("\n");
