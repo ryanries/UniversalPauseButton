@@ -258,6 +258,7 @@ void FindRegistryPids(void) {
 		while (token != NULL) {
 			TrimWhitespaces(token);
 			pid = PidLookup(token);
+			DbgPrint(L"Found \"%s\" via the windows registry settings", token);
 			if (pid) addToSet(&gPids, pid);
 			// Get the next token
 			token = wcstok_s(NULL, delim, &context);
@@ -604,8 +605,8 @@ void TrimWhitespaces(wchar_t* str) {
 	wchar_t* end;
 
 	// Trim leading whitespaces
-	while (iswspace(*str)) { // iswspace returns zero (false) if the char is not a whitespace
-		str++;  // move pointer until we find the first whitespace char
+	while (iswspace(*str)) {    // iswspace returns zero (false) if the char is not a whitespace
+		str++;                    // move pointer until we find the first whitespace char
 	}
 
 	// Trim trailing whitespaces
