@@ -77,6 +77,18 @@ If TrayIcon is enabled, which it is by default, there will be a small system tra
 
 If ProcessNameToPause is defined, then the app will only pause that process by name, regardless of foreground window. E.g., notepad.exe or mycoolgame.exe. Include the .exe file extension. It expects process name, not Window text. WARNING: In case there are multiple processes with the same name, only the first instance found will be paused. Please don't try dumb things like trying to pause svchost.exe or lsass.exe or csrss.exe...
 
+**ProcessNameListToPause**
+
+    Type: REG_SZ (String)
+
+	Default: "" (Empty string)
+
+	Minimum: n/a
+
+	Maximum: n/a
+
+
+If ProcessNameListToPause is defined, then the app will pause and resume all of the processes listed at the same time. Follow the same guidelines as ProcessNameToPause. Seperate each process by a comma. E.g., "VRising.exe, VRisingServer.exe, Spotify.exe". Note: You only need to use either ProcessNameToPause or ProcessNameListToPause, but both can be used simultaneously.
 
 As always, please try it out, and let me know if you find any bugs or have any feature requests.
 
