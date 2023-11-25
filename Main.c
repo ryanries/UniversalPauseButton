@@ -207,7 +207,8 @@ i8 PauseProcess(u32 Pid) {
 		return -1;
 	}
 
-	NtSuspendProcess(ProcessHandle);
+	i32 SuspendResult = NtSuspendProcess(ProcessHandle);
+	DbgPrint(L"NtSuspendProcess() Result Code: %d", SuspendResult);
 	CloseHandle(ProcessHandle);
 	gIsPaused = TRUE;
 	addToSet(&gPids, Pid);
