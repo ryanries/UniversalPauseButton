@@ -208,6 +208,7 @@ i8 PauseProcess(u32 Pid) {
 	}
 
 	NtSuspendProcess(ProcessHandle);
+	CloseHandle(ProcessHandle);
 	gIsPaused = TRUE;
 	addToSet(&gPids, Pid);
 	DbgPrint(L"Process %d paused!", Pid);
@@ -228,16 +229,15 @@ u32 PidOfForegroundProcess(void) {
 		MsgBox(L"Failed to get PID from foreground window! Error code 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
 		return 0;
 	}
+
 	HANDLE ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessId);
 	if (ProcessHandle == NULL)
 	{
 		MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, ProcessId, GetLastError());
+		CloseHandle(ProcessHandle);
 		return 0;
 	}
-	else
-	{
-		CloseHandle(ProcessHandle);
-	}
+	CloseHandle(ProcessHandle);
 	return ProcessId;
 }
 
@@ -333,15 +333,10 @@ i8 ResumeProcess(u32 Pid)
 		MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, Pid, GetLastError());
 		return -1;
 	}
-	else
-	{
-		NtResumeProcess(ProcessHandle);
-		DbgPrint(L"Resume of %d successful.", Pid);
-	}	
-	if (ProcessHandle)
-	{
-		CloseHandle(ProcessHandle);
-	}
+
+	NtResumeProcess(ProcessHandle);
+	CloseHandle(ProcessHandle);
+	DbgPrint(L"Resume of %d successful.", Pid);
 	return 0;
 }
 
