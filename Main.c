@@ -4,6 +4,8 @@
 // ryanries09@gmail.com
 // https://github.com/ryanries/UniversalPauseButton/
 
+#pragma warning(disable: 5045) // Spectre memory vulnerability warnings
+
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -18,14 +20,15 @@
 #include <TlHelp32.h>
 #include "Main.h"
 #include "resource.h"
+#include "set.h"
 
 CONFIG gConfig;
 HANDLE gDbgConsole = INVALID_HANDLE_VALUE;
-BOOL gIsRunning = TRUE;
-HANDLE gMutex;
+BOOL gIsRunning = TRUE;              // Tracks if the application is running
+HANDLE gMutex;                       // Ensures only a single instance of the app is running
 NOTIFYICONDATA gTrayNotifyIconData;
-BOOL gIsPaused;
-u32 gPreviouslyPausedProcessId;
+BOOL gIsPaused = FALSE;              // Global pause state for all processes
+Set gPids;                           // Process PIDs
 
 int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _In_ PWSTR CmdLine, _In_ int CmdShow)
 {	
@@ -37,6 +40,7 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 	MSG WndMsg = { 0 };
 	//HHOOK KeyboardHook = NULL;
 
+	initializeSet(&gPids);
 	if (LoadRegistrySettings() != ERROR_SUCCESS)
 	{
 		goto Exit;
@@ -143,10 +147,8 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 			{
 				HandlePauseKeyPress();
 			}
-
 			DispatchMessageW(&WndMsg);
 		}
-
 		Sleep(5);
 	}
 
@@ -154,135 +156,205 @@ Exit:
 	return(0);
 }
 
-void HandlePauseKeyPress(void)
-{
-	HANDLE ProcessHandle = NULL;
+// returns PID or 0 on error
+u32 PidLookup(wchar_t* ProcessName) {
+
 	HANDLE ProcessSnapshot = NULL;
 	PROCESSENTRY32W ProcessEntry = { sizeof(PROCESSENTRY32W) };
 	u32 ProcessId = 0;
+
+	ProcessSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (ProcessSnapshot == INVALID_HANDLE_VALUE)
+	{
+		MsgBox(L"Failed to create snapshot of running processes! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+		return 0;
+	}
+
+	if (Process32FirstW(ProcessSnapshot, &ProcessEntry) == FALSE)
+	{
+		MsgBox(L"Failed to retrieve list of running processes! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+		return 0;
+	}
+
+	do
+	{
+		if (_wcsicmp(ProcessEntry.szExeFile, ProcessName) == 0)
+		{
+			ProcessId = ProcessEntry.th32ProcessID;
+			DbgPrint(L"Found process %s with PID %d.", ProcessEntry.szExeFile, ProcessId);
+			
+			break;
+		}
+	} while (Process32NextW(ProcessSnapshot, &ProcessEntry));
+
+	CloseHandle(ProcessSnapshot);
 	
-	// Either we configured it to pause/un-pause a specified process, or we will pause/un-pause
-	// the currently in-focus foreground window.
-	if (wcslen(gConfig.ProcessNameToPause) > 0)
+	if (ProcessId == 0)
 	{
-		if (gIsPaused)
-		{
-			// Process currently paused, need to un-pause it.
-			UnpausePreviouslyPausedProcess();
-		}
-		else
-		{
-			// Process needs to be paused.
-			DbgPrint(L"Pause key pressed. Attempting to pause named process %s...", gConfig.ProcessNameToPause);
-			ProcessSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-			if (ProcessSnapshot == INVALID_HANDLE_VALUE)
-			{
-				MsgBox(L"Failed to create snapshot of running processes! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
-				goto Exit;
-			}
-
-			if (Process32FirstW(ProcessSnapshot, &ProcessEntry) == FALSE)
-			{
-				MsgBox(L"Failed to retrieve list of running processes! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
-				goto Exit;
-			}
-
-			do
-			{
-				if (_wcsicmp(ProcessEntry.szExeFile, gConfig.ProcessNameToPause) == 0)
-				{
-					ProcessId = ProcessEntry.th32ProcessID;
-					DbgPrint(L"Found process %s with PID %d.", ProcessEntry.szExeFile, ProcessId);
-					break;
-				}
-			} while (Process32NextW(ProcessSnapshot, &ProcessEntry));
-
-			if (ProcessId == 0)
-			{
-				DbgPrint(L"Unable to locate any process with the name %s!", gConfig.ProcessNameToPause);
-				goto Exit;
-			}
-			ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessId);
-			if (ProcessHandle == NULL)
-			{
-				MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, ProcessId, GetLastError());
-				goto Exit;
-			}
-			NtSuspendProcess(ProcessHandle);
-			gIsPaused = TRUE;
-			gPreviouslyPausedProcessId = ProcessId;
-			DbgPrint(L"Process paused!");
-		}		
-	}
-	else
-	{
-		if (gIsPaused)
-		{
-			// Process currently paused, need to un-pause it.
-			UnpausePreviouslyPausedProcess();
-		}
-		else
-		{			
-			// Process needs to be paused.
-			DbgPrint(L"Pause key pressed. Attempting to pause current foreground window...");
-			HWND ForegroundWindow = GetForegroundWindow();
-			if (ForegroundWindow == NULL)
-			{
-				MsgBox(L"Failed to detect foreground window!", APPNAME L" Error", MB_OK | MB_ICONERROR);
-				goto Exit;
-			}
-			GetWindowThreadProcessId(ForegroundWindow, &ProcessId);
-			if (ProcessId == 0)
-			{
-				MsgBox(L"Failed to get PID from foreground window! Error code 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
-				goto Exit;
-			}
-			ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessId);
-			if (ProcessHandle == NULL)
-			{
-				MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, ProcessId, GetLastError());
-				goto Exit;
-			}
-			NtSuspendProcess(ProcessHandle);
-			gIsPaused = TRUE;
-			gPreviouslyPausedProcessId = ProcessId;
-			DbgPrint(L"Process paused!");
-		}		
+		DbgPrint(L"Unable to locate any process with the name %s!", ProcessName);
+		return 0;
 	}
 
-Exit:
-	if (ProcessSnapshot && ProcessSnapshot != INVALID_HANDLE_VALUE)
+	return ProcessId;
+}
+
+// returns 0 on success, -1 on error
+i8 PauseProcess(u32 Pid) {
+	HANDLE ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, Pid);
+	if (ProcessHandle == NULL)
 	{
-		CloseHandle(ProcessSnapshot);
+		MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, Pid, GetLastError());
+		return -1;
 	}
-	if (ProcessHandle)
+
+	i32 SuspendResult = NtSuspendProcess(ProcessHandle);
+	DbgPrint(L"NtSuspendProcess() Result Code: %d", SuspendResult);
+	CloseHandle(ProcessHandle);
+	gIsPaused = TRUE;
+	addToSet(&gPids, Pid);
+	DbgPrint(L"Process %d paused!", Pid);
+	return 0;
+}
+
+u32 PidOfForegroundProcess(void) {
+	u32 ProcessId;
+	HWND ForegroundWindow = GetForegroundWindow();
+	if (ForegroundWindow == NULL)
 	{
+		MsgBox(L"Failed to detect foreground window!", APPNAME L" Error", MB_OK | MB_ICONERROR);
+		return 0;
+	}
+	GetWindowThreadProcessId(ForegroundWindow, &ProcessId);
+	if (ProcessId == 0)
+	{
+		MsgBox(L"Failed to get PID from foreground window! Error code 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, GetLastError());
+		return 0;
+	}
+
+	HANDLE ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcessId);
+	if (ProcessHandle == NULL)
+	{
+		MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, ProcessId, GetLastError());
 		CloseHandle(ProcessHandle);
+		return 0;
+	}
+	CloseHandle(ProcessHandle);
+	return ProcessId;
+}
+
+void FindRegistryPids(void) {
+	if (wcslen(gConfig.ProcessNameListToPause) > 0)
+	{
+		u32 pid = 0;
+		// A required pointer which tracks the context between successive calls to wcstok_s().
+		wchar_t* context = NULL;
+		wchar_t delim[] = L", ";
+		wchar_t myCopy[sizeof(gConfig.ProcessNameListToPause) / sizeof(wchar_t)];
+
+		wcscpy_s(myCopy, _countof(myCopy), gConfig.ProcessNameListToPause);
+
+		// strtok modifies the original string during the parsing process
+		wchar_t* token = wcstok_s(myCopy, delim, &context);
+		// loop through all process names
+		while (token != NULL) {
+			TrimWhitespaces(token);
+			pid = PidLookup(token);
+			DbgPrint(L"Found \"%s\" via the windows registry settings", token);
+			if (pid) addToSet(&gPids, pid);
+			// Get the next token
+			token = wcstok_s(NULL, delim, &context);
+		}
 	}
 }
 
-void UnpausePreviouslyPausedProcess(void)
-{	
-	HANDLE ProcessHandle = NULL;
-	DbgPrint(L"Pause key pressed. Attempting to un-pause previously paused PID %d.", gPreviouslyPausedProcessId);
+void FindForegroundPid(void) {
+	u32 pid = PidOfForegroundProcess();
+	if (pid) addToSet(&gPids, pid);
+}
 
-	ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, gPreviouslyPausedProcessId);
-	if (ProcessHandle == NULL)
+void TogglePause(void) {
+	// Iterate through Set of PIDs and pause/unpause as needed
+
+	if (gIsPaused)
 	{
-		// Maybe the previously paused process was killed, no longer exists?
-		MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, gPreviouslyPausedProcessId, GetLastError());		
+		DbgPrint(L"Resuming PIDs...");
+		for (size_t i = 0; i < gPids.size; i++) {
+			u32 p = gPids.elements[i];
+			ResumeProcess(p);
+		}
+		initializeSet(&gPids);
+		gIsPaused = false;
 	}
 	else
 	{
-		NtResumeProcess(ProcessHandle);
-		DbgPrint(L"Un-pause successful.");
-	}	
-	gIsPaused = FALSE;
-	gPreviouslyPausedProcessId = 0;
-	if (ProcessHandle)
-	{
-		CloseHandle(ProcessHandle);
+		DbgPrint(L"Pausing PIDs...");
+		size_t length = gPids.size;
+		for (size_t i = 0; i < length; i++) {
+			u32 p = gPids.elements[i];
+			PauseProcess(p);
+			addToSet(&gPids, p);
+		}
+		gIsPaused = true;
 	}
+}
+
+
+void HandlePauseKeyPress(void)
+{
+	// Either we configured it to pause/un-pause a specified process via the registry,
+	// or we will pause/un-pause the currently in-focus foreground window.
+	DbgPrint(L"Pause key pressed.");
+
+	if (isSetEmpty(&gPids)) { 
+		DbgPrint(L"Attempting to pause registry configured named processes %s...", gConfig.ProcessNameListToPause);
+		FindRegistryPids();
+
+		// If nothing is in the registry, use the foreground window
+		if (isSetEmpty(&gPids)) {
+			FindForegroundPid();
+			DbgPrint(L"Attempting to pause current foreground window...");
+		}
+	}
+		
+	if (!isSetEmpty(&gPids)) {
+		TogglePause();
+	}
+}
+
+// returns 0 on success, -1 on failure
+i8 ResumeProcess(u32 Pid)
+{	
+	HANDLE ProcessHandle = NULL;
+	DbgPrint(L"Attempting to resume previously paused PID %d.", Pid);
+
+	ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, Pid);
+	if (ProcessHandle == NULL)
+	{
+		// Maybe the previously paused process was killed, no longer exists?
+		MsgBox(L"Failed to open process %d! Error 0x%08lx", APPNAME L" Error", MB_OK | MB_ICONERROR, Pid, GetLastError());
+		return -1;
+	}
+
+	NtResumeProcess(ProcessHandle);
+	CloseHandle(ProcessHandle);
+	DbgPrint(L"Resume of %d successful.", Pid);
+	return 0;
+}
+
+void ShowDebugConsole(void) {
+	if (AllocConsole() == FALSE)
+	{
+		MsgBox(L"Failed to allocate debug console!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
+		return;
+	}
+	gDbgConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (gDbgConsole == INVALID_HANDLE_VALUE)
+	{
+		MsgBox(L"Failed to get stdout debug console handle!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
+		return;
+	}
+	DbgPrint(L"%s version %s.", APPNAME, VERSION);
+	DbgPrint(L"To disable this debug console, delete the 'Debug' reg setting at HKCU\\SOFTWARE\\%s", APPNAME);
 }
 
 u32 LoadRegistrySettings(void)
@@ -332,6 +404,14 @@ u32 LoadRegistrySettings(void)
 			.MinValue = NULL,
 			.MaxValue = NULL,
 			.Destination = &gConfig.ProcessNameToPause
+		},
+		{
+			.Name = L"ProcessNameListToPause",
+			.DataType = REG_SZ,
+			.DefaultValue = &(wchar_t[1024]) { L"" },
+			.MinValue = NULL,
+			.MaxValue = NULL,
+			.Destination = &gConfig.ProcessNameListToPause
 		}
 	};
 
@@ -355,7 +435,7 @@ u32 LoadRegistrySettings(void)
 					Settings[s].Name,
 					RRF_RT_DWORD,
 					NULL,
-					Settings[s].Destination,
+					Settings[s].Destination,   // Registry Value is stored here
 					&BytesRead);
 				if (Result != ERROR_SUCCESS)
 				{
@@ -383,22 +463,7 @@ u32 LoadRegistrySettings(void)
 				// This is so the debug console can report on the other registry settings.
 				if (Settings[s].Destination == &gConfig.Debug)
 				{
-					if (gConfig.Debug)
-					{
-						if (AllocConsole() == FALSE)
-						{
-							MsgBox(L"Failed to allocate debug console!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
-							goto Exit;
-						}
-						gDbgConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-						if (gDbgConsole == INVALID_HANDLE_VALUE)
-						{
-							MsgBox(L"Failed to get stdout debug console handle!\nError: 0x%08lx", L"Error", MB_OK | MB_ICONERROR, GetLastError());
-							goto Exit;
-						}
-						DbgPrint(L"%s version %s.", APPNAME, VERSION);
-						DbgPrint(L"To disable this debug console, delete the 'Debug' reg setting at HKCU\\SOFTWARE\\%s", APPNAME);
-					}
+					if (gConfig.Debug) ShowDebugConsole();
 				}
 
 				DbgPrint(L"Using value 0n%d (0x%x) for registry setting '%s'.", *(u32*)Settings[s].Destination, *(u32*)Settings[s].Destination, Settings[s].Name);
@@ -414,7 +479,7 @@ u32 LoadRegistrySettings(void)
 					Settings[s].Name,
 					RRF_RT_REG_SZ,
 					NULL,
-					Settings[s].Destination,
+					Settings[s].Destination,    // Registry Value is stored here
 					&BytesRead);
 				if (Result != ERROR_SUCCESS)
 				{
@@ -440,6 +505,15 @@ u32 LoadRegistrySettings(void)
 			}
 		}
 	}
+
+	// Combine ProcessNameToPause and ProcessNameListToPause
+	if (wcslen(gConfig.ProcessNameListToPause) > 0)
+	{
+		wcscat_s(gConfig.ProcessNameListToPause, sizeof(gConfig.ProcessNameListToPause), L", ");
+	}
+	wcscat_s(gConfig.ProcessNameListToPause, sizeof(gConfig.ProcessNameListToPause), gConfig.ProcessNameToPause);
+	
+	DbgPrint(L"Final List of Processes: %s.", gConfig.ProcessNameListToPause);
 
 Exit:
 	if (RegKey != NULL)
@@ -520,4 +594,23 @@ LRESULT CALLBACK SysTrayCallback(_In_ HWND Window, _In_ UINT Message, _In_ WPARA
 		}
 	}
 	return(Result);
+}
+
+// Function to trim leading and trailing whitespaces from a wide string
+void TrimWhitespaces(wchar_t* str) {
+	wchar_t* end;
+
+	// Trim leading whitespaces
+	while (iswspace(*str)) {    // iswspace returns zero (false) if the char is not a whitespace
+		str++;                    // move pointer until we find the first whitespace char
+	}
+
+	// Trim trailing whitespaces
+	end = str + wcslen(str) - 1;
+	while (end > str && iswspace(*end)) {
+		end--;
+	}
+
+	// Null-terminate the trimmed string
+	*(end + 1) = L'\0';
 }
