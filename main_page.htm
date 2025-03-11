@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Application Control Panel</h1>
+    <button onclick="sendPauseCommand()">Pause</button>
+    <div id="status"></div>
+    <script>
+        function sendPauseCommand() {
+            fetch('/pause', { method: 'POST' })
+            .then(response => response.text())
+            .then(data => {
+                if(data == 1) { document.getElementById('status').textContent = 'Paused.'; }
+                else { document.getElementById('status').textContent = 'Unpaused.'; }
+            })
+            .catch(error => {
+                document.getElementById('status').textContent = 'Error: ' + error;
+            });
+        }
+    </script>
+</body>
+</html>

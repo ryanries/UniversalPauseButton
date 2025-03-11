@@ -18,6 +18,7 @@
 #include <TlHelp32.h>
 #include "Main.h"
 #include "resource.h"
+#include "Server.h"
 
 CONFIG gConfig;
 HANDLE gDbgConsole = INVALID_HANDLE_VALUE;
@@ -26,6 +27,7 @@ HANDLE gMutex;
 NOTIFYICONDATA gTrayNotifyIconData;
 BOOL gIsPaused;
 u32 gPreviouslyPausedProcessId;
+
 
 int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _In_ PWSTR CmdLine, _In_ int CmdShow)
 {	
@@ -135,6 +137,12 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 
 	DbgPrint(L"Registered hotkey 0x%x.", gConfig.PauseKey);
 
+	DbgPrint(L"Starting Server!");
+
+	serve_start(8080);
+
+	DbgPrint(L"Finished with Server!");
+
 	while (gIsRunning)
 	{
 		while (PeekMessageW(&WndMsg, NULL, 0, 0, PM_REMOVE))
@@ -147,10 +155,15 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 			DispatchMessageW(&WndMsg);
 		}
 
+		if (serve_request(gIsPaused))
+			HandlePauseKeyPress();
+
 		Sleep(5);
 	}
 
 Exit:
+	serve_stop();
+
 	return(0);
 }
 
