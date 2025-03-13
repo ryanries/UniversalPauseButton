@@ -13,14 +13,13 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-/*            min-height: 100vh;  co: this causes button to be displayed cut off on the bottom of mobile screens, scrolling the screen will then make it jump up*/
             background-color: #1a1a2e;
             color: #e2e2e2;
             transition: background-color 0.5s;
-            overflow: hidden;
+            overflow: auto;
         }
 
-        .container {
+        .container, .selection-container {
             text-align: center;
             padding: 2rem;
             background-color: rgba(0, 0, 0, 0.3);
@@ -28,19 +27,44 @@
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(10px);
             width: 90%;
-            max-width: 800px;
+            max-width: 500px;
+            margin: 20px auto;
         }
 
         h1 {
-            font-size: 2.5rem;
-            margin-bottom: 2rem;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-            letter-spacing: 2px;
+            letter-spacing: 1px;
         }
 
+        p {
+            font-size: 1.1rem;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+        }
+
+        .verify-button {
+            padding: 12px 24px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #16a085, #3498db);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+            .verify-button:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            }
+
         .control-button {
-            width: 200px;
-            height: 200px;
+            width: 150px;
+            height: 150px;
             font-size: 1.5rem;
             font-weight: bold;
             background: linear-gradient(45deg, #16a085, #3498db);
@@ -67,18 +91,6 @@
                 transform: translateY(2px) scale(0.98);
             }
 
-            .control-button::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
-                pointer-events: none;
-                border-radius: 50%;
-            }
-
         .pause-icon {
             display: flex;
             justify-content: center;
@@ -87,11 +99,11 @@
         }
 
         .pause-bar {
-            width: 20px;
-            height: 60px;
+            width: 15px;
+            height: 45px;
             background-color: white;
             border-radius: 4px;
-            margin: 0 8px;
+            margin: 0 6px;
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
             transition: all 0.3s ease;
         }
@@ -100,7 +112,7 @@
             width: 0;
             height: 0;
             border-style: solid;
-            border-width: 30px 0 30px 52px;
+            border-width: 22px 0 22px 38px;
             border-color: transparent transparent transparent white;
             filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
             transition: all 0.3s ease;
@@ -108,36 +120,32 @@
         }
 
         #status {
-            margin-top: 2rem;
-            font-size: 1.2rem;
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
             background-color: rgba(0, 0, 0, 0.2);
-            padding: 10px 20px;
+            padding: 8px 16px;
             border-radius: 10px;
             min-height: 1.5rem;
             transition: all 0.3s ease;
         }
 
         .rgb-button {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 8px 15px;
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 6px 12px;
             background: linear-gradient(45deg, #ff0000, #00ff00, #0000ff);
             background-size: 200% 200%;
             color: white;
             border: none;
-            border-radius: 20px;
+            border-radius: 15px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: bold;
             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
             animation: rgbShift 5s infinite;
             transition: transform 0.3s ease;
         }
-
-            .rgb-button:hover {
-                transform: scale(1.05);
-            }
 
         @keyframes rgbShift {
             0% {
@@ -261,58 +269,35 @@
             }
         }
 
-        /* Pulsing animation for the button */
-        @keyframes pulse-glow {
-            0% {
-                box-shadow: 0 0 15px rgba(22, 160, 133, 0.7);
-            }
-
-            50% {
-                box-shadow: 0 0 30px rgba(52, 152, 219, 0.9);
-            }
-
-            100% {
-                box-shadow: 0 0 15px rgba(22, 160, 133, 0.7);
-            }
-        }
-
-        .pulse-animation {
-            animation: pulse-glow 2s infinite;
-        }
-
-        /* Button state backgrounds */
-        .paused-state {
-            background: linear-gradient(45deg, #16a085, #3498db);
-        }
-
-        .playing-state {
-            background: linear-gradient(45deg, #e74c3c, #e67e22);
-        }
-
-        /* Responsive adjustments */
         @media (max-width: 600px) {
-            .control-button {
-                width: 150px;
-                height: 150px;
+            h1 {
+                font-size: 1.8rem;
             }
 
-            .pause-bar {
-                width: 15px;
-                height: 45px;
-                margin: 0 6px;
+            p {
+                font-size: 1rem;
             }
 
-            .play-icon {
-                border-width: 22px 0 22px 38px;
+            .verify-button {
+                padding: 10px 20px;
+                font-size: 1rem;
             }
         }
     </style>
 </head>
 <body>
     <div class="particles" id="particles"></div>
-    <div class="container">
+
+    <!-- First Screen -->
+    <div id="selectionScreen" class="selection-container">
+        <p>Open the game you want to pause.</p>
+        <button class="verify-button" onclick="showMainScreen()">Game is ready</button>
+    </div>
+
+    <!-- Second Screen (Hidden at Start) -->
+    <div id="mainScreen" class="container" style="display: none;">
         <h1>Universal Pause Button</h1>
-        <button id="controlButton" class="control-button paused-state pulse-animation" onclick="sendPauseCommand()">
+        <button id="controlButton" class="control-button" onclick="sendPauseCommand()">
             <div id="pauseIcon" class="pause-icon">
                 <div class="pause-bar"></div>
                 <div class="pause-bar"></div>
@@ -321,122 +306,76 @@
         </button>
         <div id="status"></div>
     </div>
-    <button class="rgb-button" onclick="toggleRgbEffect()">RGB</button>
+    <button class="rgb-button" onclick="toggleRgbEffect()" style="display: none;" id="rgbButton">RGB</button>
 
     <script>
-        let isPaused = true; // Start with the pause icon
+        let isPaused = true; // Start with pause icon
+
+        function showMainScreen() {
+            document.getElementById('selectionScreen').style.display = 'none';
+            document.getElementById('mainScreen').style.display = 'block';
+            document.getElementById('rgbButton').style.display = 'block';
+            createParticles(15); // Add some particles at start
+        }
 
         function sendPauseCommand() {
-            // Visual feedback
             const controlButton = document.getElementById('controlButton');
             const pauseIcon = document.getElementById('pauseIcon');
             const playIcon = document.getElementById('playIcon');
+            const statusEl = document.getElementById('status');
 
+            // Button click animation
             controlButton.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                controlButton.style.transform = '';
-            }, 100);
+            setTimeout(() => controlButton.style.transform = '', 100);
 
             fetch('/pause', { method: 'POST' })
                 .then(response => response.text())
                 .then(data => {
-                    const statusEl = document.getElementById('status');
-
                     if (data == 1) {
-                        statusEl.textContent = 'System Paused';
+                        statusEl.textContent = 'Game Paused';
                         statusEl.style.color = '#16a085';
-
-                        // Switch to play icon
-                        isPaused = false;
                         switchToPlayIcon();
-                    }
-                    else {
-                        statusEl.textContent = 'System Unpaused';
+                    } else {
+                        statusEl.textContent = 'Game Unpaused';
                         statusEl.style.color = '#3498db';
-
-                        // Switch to pause icon
-                        isPaused = true;
                         switchToPauseIcon();
                     }
-
-                    statusEl.style.transform = 'scale(1.05)';
-                    setTimeout(() => {
-                        statusEl.style.transform = '';
-                    }, 300);
                 })
                 .catch(error => {
-                    document.getElementById('status').textContent = 'Error: ' + error;
-                    document.getElementById('status').style.color = '#e74c3c';
+                    statusEl.textContent = 'Error: ' + error;
+                    statusEl.style.color = '#e74c3c';
                 });
         }
 
         function switchToPauseIcon() {
-            const controlButton = document.getElementById('controlButton');
             const pauseIcon = document.getElementById('pauseIcon');
             const playIcon = document.getElementById('playIcon');
-
-            // Change button color gradient
-            controlButton.classList.remove('playing-state');
-            controlButton.classList.add('paused-state');
-
-            // Animate the transition
-            playIcon.style.opacity = '0';
-            pauseIcon.style.opacity = '0';
-
-            setTimeout(() => {
-                pauseIcon.style.display = 'flex';
-                playIcon.style.display = 'none';
-
-                setTimeout(() => {
-                    pauseIcon.style.opacity = '1';
-                }, 50);
-            }, 150);
+            pauseIcon.style.display = 'flex';
+            playIcon.style.display = 'none';
         }
 
         function switchToPlayIcon() {
-            const controlButton = document.getElementById('controlButton');
             const pauseIcon = document.getElementById('pauseIcon');
             const playIcon = document.getElementById('playIcon');
-
-            // Change button color gradient
-            controlButton.classList.remove('paused-state');
-            controlButton.classList.add('playing-state');
-
-            // Animate the transition
-            pauseIcon.style.opacity = '0';
-            playIcon.style.opacity = '0';
-
-            setTimeout(() => {
-                playIcon.style.display = 'block';
-                pauseIcon.style.display = 'none';
-
-                setTimeout(() => {
-                    playIcon.style.opacity = '1';
-                }, 50);
-            }, 150);
+            pauseIcon.style.display = 'none';
+            playIcon.style.display = 'block';
         }
 
-        // RGB Effect Handling
         let currentEffect = 0;
         const totalEffects = 3;
 
         function toggleRgbEffect() {
             currentEffect = (currentEffect + 1) % (totalEffects + 1);
-
-            // Remove all effect classes
             document.body.classList.remove('rgb-effect-1', 'rgb-effect-2', 'rgb-effect-3');
 
             if (currentEffect > 0) {
                 document.body.classList.add(`rgb-effect-${currentEffect}`);
-
                 createParticles(200);
             } else {
-                // Reset to default
                 clearParticles();
             }
         }
 
-        // Particle effects
         function createParticles(count) {
             clearParticles();
             const particlesContainer = document.getElementById('particles');
@@ -444,8 +383,6 @@
             for (let i = 0; i < count; i++) {
                 const particle = document.createElement('div');
                 particle.classList.add('particle');
-
-                // Random position, size and delay
                 const size = Math.random() * 6 + 2;
                 const delay = Math.random() * 10;
                 const duration = Math.random() * 10 + 10;
@@ -458,7 +395,6 @@
                 particle.style.animationDelay = `${delay}s`;
                 particle.style.animationDuration = `${duration}s`;
 
-                // Different colors based on effect
                 if (currentEffect === 1) {
                     const hue = Math.random() * 360;
                     particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.7)`;
@@ -477,9 +413,6 @@
             const particlesContainer = document.getElementById('particles');
             particlesContainer.innerHTML = '';
         }
-
-        // Initialize with some ambient particles
-        createParticles(15);
     </script>
 </body>
 </html>
