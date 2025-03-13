@@ -3,41 +3,483 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Application Control</title>
+    <title>Universal Pause Button</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #1a1a2e;
+            color: #e2e2e2;
+            transition: background-color 0.5s;
+            overflow: hidden;
         }
 
-        button {
-            padding: 10px 20px;
-            font-size: 18px;
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            width: 90%;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            letter-spacing: 2px;
+        }
+
+        .control-button {
+            width: 200px;
+            height: 200px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #16a085, #3498db);
+            color: white;
+            border: none;
+            border-radius: 50%;
             cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+            .control-button:hover {
+                transform: translateY(-5px) scale(1.05);
+                box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            }
+
+            .control-button:active {
+                transform: translateY(2px) scale(0.98);
+            }
+
+            .control-button::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
+                pointer-events: none;
+                border-radius: 50%;
+            }
+
+        .pause-icon {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .pause-bar {
+            width: 20px;
+            height: 60px;
+            background-color: white;
+            border-radius: 4px;
+            margin: 0 8px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .play-icon {
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 30px 0 30px 52px;
+            border-color: transparent transparent transparent white;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+            transition: all 0.3s ease;
+            display: none;
         }
 
         #status {
-            margin-top: 20px;
-            font-size: 16px;
+            margin-top: 2rem;
+            font-size: 1.2rem;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 10px 20px;
+            border-radius: 10px;
+            min-height: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .rgb-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            background: linear-gradient(45deg, #ff0000, #00ff00, #0000ff);
+            background-size: 200% 200%;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            animation: rgbShift 5s infinite;
+            transition: transform 0.3s ease;
+        }
+
+            .rgb-button:hover {
+                transform: scale(1.05);
+            }
+
+        @keyframes rgbShift {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .rgb-effect-1 {
+            animation: rainbow 5s linear infinite;
+        }
+
+        .rgb-effect-2 {
+            animation: pulse 3s infinite;
+        }
+
+        .rgb-effect-3 {
+            animation: matrix 5s linear infinite;
+            background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 25%, rgba(0, 255, 0, 0.2) 50%, rgba(0, 0, 0, 0.8) 75%);
+            background-size: 100% 300%;
+        }
+
+        @keyframes rainbow {
+            0% {
+                background-color: #ff0000;
+            }
+
+            16.6% {
+                background-color: #ff8000;
+            }
+
+            33.3% {
+                background-color: #ffff00;
+            }
+
+            50% {
+                background-color: #00ff00;
+            }
+
+            66.6% {
+                background-color: #0000ff;
+            }
+
+            83.3% {
+                background-color: #8000ff;
+            }
+
+            100% {
+                background-color: #ff0000;
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                background-color: #1a1a2e;
+            }
+
+            50% {
+                background-color: #4a2a7a;
+            }
+
+            100% {
+                background-color: #1a1a2e;
+            }
+        }
+
+        @keyframes matrix {
+            0% {
+                background-position: 0% 0%;
+            }
+
+            100% {
+                background-position: 0% 300%;
+            }
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.5);
+            animation: float 10s infinite linear;
+            opacity: 0;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(0);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-100vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+
+        /* Pulsing animation for the button */
+        @keyframes pulse-glow {
+            0% {
+                box-shadow: 0 0 15px rgba(22, 160, 133, 0.7);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(52, 152, 219, 0.9);
+            }
+
+            100% {
+                box-shadow: 0 0 15px rgba(22, 160, 133, 0.7);
+            }
+        }
+
+        .pulse-animation {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Button state backgrounds */
+        .paused-state {
+            background: linear-gradient(45deg, #16a085, #3498db);
+        }
+
+        .playing-state {
+            background: linear-gradient(45deg, #e74c3c, #e67e22);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .control-button {
+                width: 150px;
+                height: 150px;
+            }
+
+            .pause-bar {
+                width: 15px;
+                height: 45px;
+                margin: 0 6px;
+            }
+
+            .play-icon {
+                border-width: 22px 0 22px 38px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Application Control Panel</h1>
-    <button onclick="sendPauseCommand()">Pause</button>
-    <div id="status"></div>
+    <div class="particles" id="particles"></div>
+    <div class="container">
+        <h1>Universal Pause Button</h1>
+        <button id="controlButton" class="control-button paused-state pulse-animation" onclick="sendPauseCommand()">
+            <div id="pauseIcon" class="pause-icon">
+                <div class="pause-bar"></div>
+                <div class="pause-bar"></div>
+            </div>
+            <div id="playIcon" class="play-icon"></div>
+        </button>
+        <div id="status"></div>
+    </div>
+    <button class="rgb-button" onclick="toggleRgbEffect()">RGB</button>
+
     <script>
+        let isPaused = true; // Start with the pause icon
+
         function sendPauseCommand() {
+            // Visual feedback
+            const controlButton = document.getElementById('controlButton');
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playIcon = document.getElementById('playIcon');
+
+            controlButton.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                controlButton.style.transform = '';
+            }, 100);
+
             fetch('/pause', { method: 'POST' })
-            .then(response => response.text())
-            .then(data => {
-                if(data == 1) { document.getElementById('status').textContent = 'Paused.'; }
-                else { document.getElementById('status').textContent = 'Unpaused.'; }
-            })
-            .catch(error => {
-                document.getElementById('status').textContent = 'Error: ' + error;
-            });
+                .then(response => response.text())
+                .then(data => {
+                    const statusEl = document.getElementById('status');
+
+                    if (data == 1) {
+                        statusEl.textContent = 'System Paused';
+                        statusEl.style.color = '#16a085';
+
+                        // Switch to play icon
+                        isPaused = false;
+                        switchToPlayIcon();
+                    }
+                    else {
+                        statusEl.textContent = 'System Unpaused';
+                        statusEl.style.color = '#3498db';
+
+                        // Switch to pause icon
+                        isPaused = true;
+                        switchToPauseIcon();
+                    }
+
+                    statusEl.style.transform = 'scale(1.05)';
+                    setTimeout(() => {
+                        statusEl.style.transform = '';
+                    }, 300);
+                })
+                .catch(error => {
+                    document.getElementById('status').textContent = 'Error: ' + error;
+                    document.getElementById('status').style.color = '#e74c3c';
+                });
         }
+
+        function switchToPauseIcon() {
+            const controlButton = document.getElementById('controlButton');
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playIcon = document.getElementById('playIcon');
+
+            // Change button color gradient
+            controlButton.classList.remove('playing-state');
+            controlButton.classList.add('paused-state');
+
+            // Animate the transition
+            playIcon.style.opacity = '0';
+            pauseIcon.style.opacity = '0';
+
+            setTimeout(() => {
+                pauseIcon.style.display = 'flex';
+                playIcon.style.display = 'none';
+
+                setTimeout(() => {
+                    pauseIcon.style.opacity = '1';
+                }, 50);
+            }, 150);
+        }
+
+        function switchToPlayIcon() {
+            const controlButton = document.getElementById('controlButton');
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playIcon = document.getElementById('playIcon');
+
+            // Change button color gradient
+            controlButton.classList.remove('paused-state');
+            controlButton.classList.add('playing-state');
+
+            // Animate the transition
+            pauseIcon.style.opacity = '0';
+            playIcon.style.opacity = '0';
+
+            setTimeout(() => {
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+
+                setTimeout(() => {
+                    playIcon.style.opacity = '1';
+                }, 50);
+            }, 150);
+        }
+
+        // RGB Effect Handling
+        let currentEffect = 0;
+        const totalEffects = 3;
+
+        function toggleRgbEffect() {
+            currentEffect = (currentEffect + 1) % (totalEffects + 1);
+
+            // Remove all effect classes
+            document.body.classList.remove('rgb-effect-1', 'rgb-effect-2', 'rgb-effect-3');
+
+            if (currentEffect > 0) {
+                document.body.classList.add(`rgb-effect-${currentEffect}`);
+
+                createParticles(200);
+            } else {
+                // Reset to default
+                clearParticles();
+            }
+        }
+
+        // Particle effects
+        function createParticles(count) {
+            clearParticles();
+            const particlesContainer = document.getElementById('particles');
+
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+
+                // Random position, size and delay
+                const size = Math.random() * 6 + 2;
+                const delay = Math.random() * 10;
+                const duration = Math.random() * 10 + 10;
+                const xPos = Math.random() * 100;
+
+                particle.style.left = `${xPos}%`;
+                particle.style.bottom = '-10px';
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.animationDelay = `${delay}s`;
+                particle.style.animationDuration = `${duration}s`;
+
+                // Different colors based on effect
+                if (currentEffect === 1) {
+                    const hue = Math.random() * 360;
+                    particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.7)`;
+                } else if (currentEffect === 2) {
+                    const brightness = Math.random() * 50 + 50;
+                    particle.style.backgroundColor = `hsla(280, 100%, ${brightness}%, 0.7)`;
+                } else if (currentEffect === 3) {
+                    particle.style.backgroundColor = `rgba(0, 255, 0, ${Math.random() * 0.5 + 0.3})`;
+                }
+
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        function clearParticles() {
+            const particlesContainer = document.getElementById('particles');
+            particlesContainer.innerHTML = '';
+        }
+
+        // Initialize with some ambient particles
+        createParticles(15);
     </script>
 </body>
 </html>

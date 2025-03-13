@@ -162,6 +162,7 @@
     <None Include="main_page.htm">
       <DeploymentContent>true</DeploymentContent>
     </None>
+    <None Include="welcome.htm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

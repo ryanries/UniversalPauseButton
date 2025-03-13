@@ -150,6 +150,8 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 			MsgBox(L"Failed to start webserver!", APPNAME L" Error", MB_OK | MB_ICONERROR);
 			runningServer = false;
 		}
+
+		openWelcomePageInBrowser(gConfig.WebPort);
 	}
 
 

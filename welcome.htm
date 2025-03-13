@@ -1,0 +1,429 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Guide</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #1a1a2e;
+            color: #e2e2e2;
+            transition: background-color 0.5s;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            width: 90%;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            letter-spacing: 2px;
+        }
+
+        .instruction-card {
+            background-color: rgba(22, 160, 133, 0.2);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .instruction-title {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #3498db;
+        }
+
+        .instruction-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .connection-list {
+            list-style: none;
+            padding: 0;
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+
+        .connection-item {
+            background-color: rgba(52, 152, 219, 0.2);
+            margin: 0.8rem 0;
+            padding: 0.8rem 1.2rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-family: monospace;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s, background-color 0.2s;
+            cursor: pointer;
+        }
+
+            .connection-item:hover {
+                background-color: rgba(52, 152, 219, 0.4);
+                transform: translateY(-2px);
+            }
+
+        .copy-button {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background-color 0.2s;
+        }
+
+            .copy-button:hover {
+                background-color: rgba(255, 255, 255, 0.4);
+            }
+
+        .notice-box {
+            background-color: rgba(241, 196, 15, 0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            border-left: 4px solid #f1c40f;
+        }
+
+        .notice-title {
+            color: #f1c40f;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(52, 152, 219, 0.3);
+            border-radius: 50%;
+            border-top-color: #3498db;
+            animation: spin 1s infinite linear;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error-message {
+            background-color: rgba(231, 76, 60, 0.2);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid #e74c3c;
+        }
+
+        @keyframes pulse-glow {
+            0% {
+                box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(52, 152, 219, 0.8);
+            }
+
+            100% {
+                box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+            }
+        }
+
+        .pulse-animation {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .container {
+                padding: 1.5rem;
+                width: 95%;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .instruction-title {
+                font-size: 1.2rem;
+            }
+
+            .instruction-text, .connection-item {
+                font-size: 1rem;
+            }
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.5);
+            animation: float 10s infinite linear;
+            opacity: 0;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(0);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-100vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+    <div class="container" id="mainContainer">
+        <div class="loading" id="loadingSection">
+            <div class="loading-spinner"></div>
+            <div class="instruction-text">Detecting connection options...</div>
+        </div>
+
+        <div id="contentSection" style="display: none;">
+            <h1>
+                Universal Pause Button<br />
+                Connection Guide
+            </h1>
+
+            <div class="instruction-card">
+                <div class="instruction-title">Connect Your Device</div>
+                <div class="multi-ins">
+                    <p class="instruction-text">
+                        Use your phone, tablet, or another computer to connect to this application by trying each url below:
+                    </p>
+                </div>
+                <div class="single-ins">
+                    <p class="instruction-text">
+                        Use your phone, tablet, or another computer to connect to the following url:
+                    </p>
+                </div>
+
+                <ul class="connection-list" id="connectionList">
+                    <!-- Connection items will be added here -->
+                </ul>
+            </div>
+
+            <div class="instruction-card">
+                <div class="instruction-title">How to Connect</div>
+                <div class="single-ins">
+                    <p class="instruction-text">
+                        1. Make sure your device is on the same network as this computer.<br />
+                        2. Open a web browser on your device.<br />
+                        3. Enter in the above url.
+                    </p>
+                </div>
+                <div class="multi-ins">
+                    <p class="instruction-text">
+                        1. Make sure your device is on the same network as this computer.<br />
+                        2. Open a web browser on your device.<br />
+                        3. Try each of the urls above until one works.
+                    </p>
+                </div>
+                </p>
+            </div>
+
+            <div class="notice-box">
+                <div class="notice-title">Important Note</div>
+                <p class="instruction-text">
+                    You may need to open port <span id="portNumber" style="font-weight: bold;"></span> in your computer's firewall for the connection to work properly.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fetch connection data from server on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            fetchConnectionData();
+            createParticles(15); // Initialize ambient particles
+        });
+
+        function toggleGroup(groupName, isOn) {
+            const divs = document.querySelectorAll(groupName);
+            divs.forEach(div => {
+                div.style.display = isOn ? 'block' : 'none';
+            });
+        }
+
+        function fetchConnectionData() {
+            fetch('/connection-info')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Server returned an error');
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    processConnectionData(data);
+                })
+                .catch(error => {
+                    //*** uncomment to test page without server
+                    //processConnectionData("8080,192.168.24.32,,192.168.1.15");
+                    //*** and comment out this line
+                    showError('Could not retrieve connection information. Please try refreshing the page.');
+                    console.error('Error fetching connection data:', error);
+                });
+        }
+
+        function processConnectionData(data) {
+            // Parse the comma-separated string (e.g., "8080,192.168.24.32,192.168.1.16")
+            const parts = data.split(',');
+
+            if (parts.length < 2) {
+                showError('Invalid connection data received.');
+                return;
+            }
+
+            // Extract port and IPs
+            const port = parts[0];
+            const ips = parts.slice(1);
+
+            // Update the UI with the connection options
+            document.getElementById('portNumber').textContent = port;
+
+            const connectionList = document.getElementById('connectionList');
+            connectionList.innerHTML = ''; // Clear any existing entries
+
+            // Create a list item for each connection option
+            ips.forEach(ip => {
+                const url = `http://${ip}:${port}`;
+                const listItem = document.createElement('li');
+                listItem.className = 'connection-item';
+
+                listItem.innerHTML = `
+                    <span>${url}</span>
+                `;
+                // co: don't want users to mistakenly paste this into the browser and pause their own browser.
+                //    <button class="copy-button" onclick="copyToClipboard('${url}')">Copy</button>
+
+                //// Make the whole item clickable to open the URL
+                //listItem.addEventListener('click', function(e) {
+                //    if (e.target.className !== 'copy-button') {
+                //        window.open(url, '_blank');
+                //    }
+                //});
+
+                connectionList.appendChild(listItem);
+            });
+
+            // Show the content section and hide loading
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('contentSection').style.display = 'block';
+            showSingleIns = (ips.length === 1)
+            toggleGroup('.single-ins', showSingleIns);
+            toggleGroup('.multi-ins', !showSingleIns);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show temporary feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 1500);
+            });
+
+            event.stopPropagation(); // Prevent triggering the parent's click event
+        }
+
+        function showError(message) {
+            document.getElementById('loadingSection').style.display = 'none';
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+
+            const contentSection = document.getElementById('contentSection');
+            contentSection.innerHTML = '<h1>Connection Guide</h1>';
+            contentSection.appendChild(errorDiv);
+            contentSection.style.display = 'block';
+        }
+
+        // Particle effects
+        function createParticles(count) {
+            const particlesContainer = document.getElementById('particles');
+
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+
+                // Random position, size and delay
+                const size = Math.random() * 4 + 1;
+                const delay = Math.random() * 10;
+                const duration = Math.random() * 10 + 10;
+                const xPos = Math.random() * 100;
+
+                particle.style.left = `${xPos}%`;
+                particle.style.bottom = '-10px';
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.animationDelay = `${delay}s`;
+                particle.style.animationDuration = `${duration}s`;
+                particle.style.backgroundColor = `rgba(255, 255, 255, ${Math.random() * 0.3 + 0.2})`;
+
+                particlesContainer.appendChild(particle);
+            }
+        }
+    </script>
+</body>
+</html>

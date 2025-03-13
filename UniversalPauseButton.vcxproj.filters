@@ -45,5 +45,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="main_page.htm" />
+    <None Include="welcome.htm" />
   </ItemGroup>
 </Project>
