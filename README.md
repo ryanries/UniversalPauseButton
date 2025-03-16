@@ -77,6 +77,26 @@ If TrayIcon is enabled, which it is by default, there will be a small system tra
 
 If ProcessNameToPause is defined, then the app will only pause that process by name, regardless of foreground window. E.g., notepad.exe or mycoolgame.exe. Include the .exe file extension. It expects process name, not Window text. WARNING: In case there are multiple processes with the same name, only the first instance found will be paused. Please don't try dumb things like trying to pause svchost.exe or lsass.exe or csrss.exe...
 
+**WebPort**
+
+    Type: REG_SZ (String)
+	
+	Default: "" (Empty string)
+	
+	Minimum: n/a
+	
+	Maximum: n/a
+	
+
+If WebPort is defined, then the app will open up a port for which another device, such as a phone can connect to. This can be useful for games which take control of the keyboard and do not allow key presses to flow to the Universal Pause Button app.
+
+    Type: DWORD
+	
+    Default: 0x0 (Disabled)
+	
+	Minimum: 0x0
+	
+	Maximum: 0xFFFF
 
 As always, please try it out, and let me know if you find any bugs or have any feature requests.
 

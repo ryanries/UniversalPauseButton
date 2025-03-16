@@ -18,6 +18,7 @@
 #include <TlHelp32.h>
 #include "Main.h"
 #include "resource.h"
+#include "Server.h"
 
 CONFIG gConfig;
 HANDLE gDbgConsole = INVALID_HANDLE_VALUE;
@@ -26,6 +27,7 @@ HANDLE gMutex;
 NOTIFYICONDATA gTrayNotifyIconData;
 BOOL gIsPaused;
 u32 gPreviouslyPausedProcessId;
+
 
 int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _In_ PWSTR CmdLine, _In_ int CmdShow)
 {	
@@ -36,6 +38,8 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 	HMODULE NtDll = NULL;
 	MSG WndMsg = { 0 };
 	//HHOOK KeyboardHook = NULL;
+
+	bool runningServer = false;
 
 	if (LoadRegistrySettings() != ERROR_SUCCESS)
 	{
@@ -135,6 +139,22 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 
 	DbgPrint(L"Registered hotkey 0x%x.", gConfig.PauseKey);
 
+	runningServer = (gConfig.WebPort != 0);
+
+	if (runningServer)
+	{
+		DbgPrint(L"Starting Server!");
+
+		if (serve_start(gConfig.WebPort))
+		{
+			MsgBox(L"Failed to start webserver!", APPNAME L" Error", MB_OK | MB_ICONERROR);
+			runningServer = false;
+		}
+
+		openWelcomePageInBrowser(gConfig.WebPort);
+	}
+
+
 	while (gIsRunning)
 	{
 		while (PeekMessageW(&WndMsg, NULL, 0, 0, PM_REMOVE))
@@ -147,10 +167,16 @@ int WINAPI wWinMain(_In_ HINSTANCE Instance, _In_opt_ HINSTANCE PrevInstance, _I
 			DispatchMessageW(&WndMsg);
 		}
 
+		if (runningServer && serve_request(gIsPaused))
+			HandlePauseKeyPress();
+
 		Sleep(5);
 	}
 
 Exit:
+	if(runningServer)
+		serve_stop();
+
 	return(0);
 }
 
@@ -332,7 +358,15 @@ u32 LoadRegistrySettings(void)
 			.MinValue = NULL,
 			.MaxValue = NULL,
 			.Destination = &gConfig.ProcessNameToPause
-		}
+		},
+		{
+			.Name = L"WebPort",
+			.DataType = REG_DWORD,
+			.DefaultValue = &(u32) { 0 },
+			.MinValue = &(u32) { 0 },
+			.MaxValue = &(u32) { 65535 },
+			.Destination = &gConfig.WebPort
+		},
 	};
 
 	Result = RegCreateKeyExW(HKEY_CURRENT_USER, L"SOFTWARE\\" APPNAME, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &RegKey, NULL);

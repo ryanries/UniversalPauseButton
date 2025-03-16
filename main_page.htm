@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Pause Button</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #1a1a2e;
+            color: #e2e2e2;
+            transition: background-color 0.5s;
+            overflow: auto;
+        }
+
+        .container, .selection-container {
+            text-align: center;
+            padding: 2rem;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            width: 90%;
+            max-width: 500px;
+            margin: 20px auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            letter-spacing: 1px;
+        }
+
+        p {
+            font-size: 1.1rem;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+        }
+
+        .verify-button {
+            padding: 12px 24px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #16a085, #3498db);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+            .verify-button:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            }
+
+        .control-button {
+            width: 150px;
+            height: 150px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #16a085, #3498db);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+            .control-button:hover {
+                transform: translateY(-5px) scale(1.05);
+                box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            }
+
+            .control-button:active {
+                transform: translateY(2px) scale(0.98);
+            }
+
+        .pause-icon {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .pause-bar {
+            width: 15px;
+            height: 45px;
+            background-color: white;
+            border-radius: 4px;
+            margin: 0 6px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .play-icon {
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 22px 0 22px 38px;
+            border-color: transparent transparent transparent white;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        #status {
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 8px 16px;
+            border-radius: 10px;
+            min-height: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .rgb-button {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 6px 12px;
+            background: linear-gradient(45deg, #ff0000, #00ff00, #0000ff);
+            background-size: 200% 200%;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: bold;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            animation: rgbShift 5s infinite;
+            transition: transform 0.3s ease;
+        }
+
+        @keyframes rgbShift {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .rgb-effect-1 {
+            animation: rainbow 5s linear infinite;
+        }
+
+        .rgb-effect-2 {
+            animation: pulse 3s infinite;
+        }
+
+        .rgb-effect-3 {
+            animation: matrix 5s linear infinite;
+            background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 25%, rgba(0, 255, 0, 0.2) 50%, rgba(0, 0, 0, 0.8) 75%);
+            background-size: 100% 300%;
+        }
+
+        @keyframes rainbow {
+            0% {
+                background-color: #ff0000;
+            }
+
+            16.6% {
+                background-color: #ff8000;
+            }
+
+            33.3% {
+                background-color: #ffff00;
+            }
+
+            50% {
+                background-color: #00ff00;
+            }
+
+            66.6% {
+                background-color: #0000ff;
+            }
+
+            83.3% {
+                background-color: #8000ff;
+            }
+
+            100% {
+                background-color: #ff0000;
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                background-color: #1a1a2e;
+            }
+
+            50% {
+                background-color: #4a2a7a;
+            }
+
+            100% {
+                background-color: #1a1a2e;
+            }
+        }
+
+        @keyframes matrix {
+            0% {
+                background-position: 0% 0%;
+            }
+
+            100% {
+                background-position: 0% 300%;
+            }
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.5);
+            animation: float 10s infinite linear;
+            opacity: 0;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(0);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-100vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            p {
+                font-size: 1rem;
+            }
+
+            .verify-button {
+                padding: 10px 20px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+
+    <!-- First Screen -->
+    <div id="selectionScreen" class="selection-container">
+        <p>Open the game you want to pause.</p>
+        <button class="verify-button" onclick="showMainScreen()">Game is ready</button>
+    </div>
+
+    <!-- Second Screen (Hidden at Start) -->
+    <div id="mainScreen" class="container" style="display: none;">
+        <h1>Universal Pause Button</h1>
+        <button id="controlButton" class="control-button" onclick="sendPauseCommand()">
+            <div id="pauseIcon" class="pause-icon">
+                <div class="pause-bar"></div>
+                <div class="pause-bar"></div>
+            </div>
+            <div id="playIcon" class="play-icon"></div>
+        </button>
+        <div id="status"></div>
+    </div>
+    <button class="rgb-button" onclick="toggleRgbEffect()" style="display: none;" id="rgbButton">RGB</button>
+
+    <script>
+        let isPaused = true; // Start with pause icon
+
+        function showMainScreen() {
+            document.getElementById('selectionScreen').style.display = 'none';
+            document.getElementById('mainScreen').style.display = 'block';
+            document.getElementById('rgbButton').style.display = 'block';
+            createParticles(15); // Add some particles at start
+        }
+
+        function sendPauseCommand() {
+            const controlButton = document.getElementById('controlButton');
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playIcon = document.getElementById('playIcon');
+            const statusEl = document.getElementById('status');
+
+            // Button click animation
+            controlButton.style.transform = 'scale(0.95)';
+            setTimeout(() => controlButton.style.transform = '', 100);
+
+            fetch('/pause', { method: 'POST' })
+                .then(response => response.text())
+                .then(data => {
+                    if (data == 1) {
+                        statusEl.textContent = 'Game Paused';
+                        statusEl.style.color = '#16a085';
+                        switchToPlayIcon();
+                    } else {
+                        statusEl.textContent = 'Game Unpaused';
+                        statusEl.style.color = '#3498db';
+                        switchToPauseIcon();
+                    }
+                })
+                .catch(error => {
+                    statusEl.textContent = 'Error: ' + error;
+                    statusEl.style.color = '#e74c3c';
+                });
+        }
+
+        function switchToPauseIcon() {
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playIcon = document.getElementById('playIcon');
+            pauseIcon.style.display = 'flex';
+            playIcon.style.display = 'none';
+        }
+
+        function switchToPlayIcon() {
+            const pauseIcon = document.getElementById('pauseIcon');
+            const playIcon = document.getElementById('playIcon');
+            pauseIcon.style.display = 'none';
+            playIcon.style.display = 'block';
+        }
+
+        let currentEffect = 0;
+        const totalEffects = 3;
+
+        function toggleRgbEffect() {
+            currentEffect = (currentEffect + 1) % (totalEffects + 1);
+            document.body.classList.remove('rgb-effect-1', 'rgb-effect-2', 'rgb-effect-3');
+
+            if (currentEffect > 0) {
+                document.body.classList.add(`rgb-effect-${currentEffect}`);
+                createParticles(200);
+            } else {
+                clearParticles();
+            }
+        }
+
+        function createParticles(count) {
+            clearParticles();
+            const particlesContainer = document.getElementById('particles');
+
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                const size = Math.random() * 6 + 2;
+                const delay = Math.random() * 10;
+                const duration = Math.random() * 10 + 10;
+                const xPos = Math.random() * 100;
+
+                particle.style.left = `${xPos}%`;
+                particle.style.bottom = '-10px';
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.animationDelay = `${delay}s`;
+                particle.style.animationDuration = `${duration}s`;
+
+                if (currentEffect === 1) {
+                    const hue = Math.random() * 360;
+                    particle.style.backgroundColor = `hsla(${hue}, 100%, 70%, 0.7)`;
+                } else if (currentEffect === 2) {
+                    const brightness = Math.random() * 50 + 50;
+                    particle.style.backgroundColor = `hsla(280, 100%, ${brightness}%, 0.7)`;
+                } else if (currentEffect === 3) {
+                    particle.style.backgroundColor = `rgba(0, 255, 0, ${Math.random() * 0.5 + 0.3})`;
+                }
+
+                particlesContainer.appendChild(particle);
+            }
+        }
+
+        function clearParticles() {
+            const particlesContainer = document.getElementById('particles');
+            particlesContainer.innerHTML = '';
+        }
+    </script>
+</body>
+</html>

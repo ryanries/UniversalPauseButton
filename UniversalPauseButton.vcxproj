@@ -145,16 +145,24 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Main.c" />
+    <ClCompile Include="Server.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Main.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Server.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="UniversalPauseButton.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="pause.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="main_page.htm">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="welcome.htm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
